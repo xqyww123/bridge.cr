@@ -1,0 +1,9 @@
+name: bridge
+version: 0.1.0
+
+authors:
+  - Shirotsu Essential <xqyww123@gmail.com>
+
+crystal: 0.26.1
+
+license: MIT
