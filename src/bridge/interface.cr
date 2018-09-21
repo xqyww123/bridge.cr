@@ -1,11 +1,15 @@
 require "colorize"
 
 module Bridge
+  record InterfaceArgument(Host), obj : Host, connection : IO, path_arguments : Array(String)? = nil
+
+  # replace with InterfaceProc(Host) = Proc(InterfaceArgument(Host), Nil)
+
   module Host
     macro included
       # relative path => symbol of the method (without `api_` prefix)
-      record InterfaceArgument, obj : {{@type}}, connection : IO, path_arguments : Array(String)? = nil
       Interfaces = {} of String => Array(Symbol)
+      alias InterfaceArgument = Bridge::InterfaceArgument({{@type}})
       alias InterfaceProc = Proc(InterfaceArgument, Nil)
       InterfaceProcs = {} of String => InterfaceProc
     end

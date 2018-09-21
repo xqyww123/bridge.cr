@@ -1,10 +1,10 @@
 require "./spec_helper"
 
 alias Driver = Bridge::Driver
-alias Interface = Bridge::Interface
+alias Host = Bridge::Host
 
 describe Bridge do
-  describe Interface do
+  describe Host do
     it "collects interfaces" do
       Dog::Interfaces.should eq({"pet" => [:api_pet]})
       Zoo::Interfaces.should eq({"dog/pet" => [:dog, :api_pet], "dog2/pet" => [:dog2, :api_pet], "cat/fish!" => [:cat, :"api_fish!"], "zoo" => [:api_zoo]})

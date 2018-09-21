@@ -41,6 +41,7 @@ module Bridge
     end
 
     tolerate bind, InterfaceBindFail
+    tolerate listen, InterfaceListenFail
   end
 end
 
