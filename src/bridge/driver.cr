@@ -14,10 +14,8 @@ module Bridge
       raise err
     end
 
-    PROGRAM_NAME = "Bridge #{Host} on #{self}"
-
     macro log(type, info)
-      @logger.{{type.id}}({{info}}, PROGRAM_NAME)
+      @logger.{{type.id}}({{info}}, self)
     end
 
     abstract def bind
@@ -40,8 +38,14 @@ module Bridge
       end
     end
 
-    tolerate bind, InterfaceBindFail
-    tolerate listen, InterfaceListenFail
+    tolerate bind, InterfaceBindFail(Host)
+    tolerate listen, InterfaceListenFail(Host)
+
+    def to_s(io : IO)
+      io << self.class
+    end
+
+    abstract def client(interface : String)
   end
 end
 

@@ -3,10 +3,10 @@ module Bridge
   end
 
   class InterfaceFail(Host) < BridgeFail
-    getter interfac_path : String
+    getter interface_path : String
     getter host : Host
 
-    def initialize(@host, @interfac_path, msg, cause = nil)
+    def initialize(@host, @interface_path, msg, cause = nil)
       super msg, cause
     end
 
@@ -27,22 +27,22 @@ module Bridge
 
   macro interface_fail(name, message, &block)
     class {{name.id.camelcase}}(Host) < InterfaceFail(Host)
-      def initialize(host, interfac_path, cause = nil)
-        super host, interfac_path, {{message}}, cause
+      def initialize(host : Host, interface_path, cause = nil)
+        super host, interface_path, {{message}}, cause
       end
       {{ yield }}
     end
   end
 
-  interface_fail InterfaceNotFound, "API `#{interfac_path}` not found in #{Host} #{host}"
-  interface_fail InterfaceBindFail, "Interface #{interfac_path} in #{Host} fail to bind, because:\n#{cause.message}"
-  interface_fail InterfaceListenFail, "Interface #{interfac_path} in #{Host} fail to listen, because:\n#{cause.message}"
+  interface_fail InterfaceNotFound, "API `#{interface_path}` not found in #{Host} #{host}"
+  interface_fail InterfaceBindFail, "Interface #{interface_path} in #{Host} fail to bind, because:\n#{cause.message}"
+  interface_fail InterfaceListenFail, "Interface #{interface_path} in #{Host} fail to listen, because:\n#{cause.message}"
 
   class DriverRunningFail(Host, Driver) < InterfaceFail(Host)
     getter driver : Driver
 
-    def initialize(host, @driver, interfac_path, msg, cause = nil)
-      super host, interfac_path, "Exception occured for #{Driver} #{@driver} on #{Host} #{host}:\n#{msg}"
+    def initialize(host, @driver, interface_path, msg, cause = nil)
+      super host, interface_path, "Exception occured for #{Driver} #{@driver} on #{Host} #{host}:\n#{msg}"
     end
 
     def self.new(host, driver, *args)
@@ -54,13 +54,13 @@ module Bridge
 
   macro driver_running_fail(name, msg)
     class {{name.id.camelcase}}(Host, Driver) < DriverRunningFail(Host, Driver)
-      def initialize(host, driver, interfac_path, cause = nil)
-        super host, driver, interfac_path, {{msg}}, cause
+      def initialize(host : Host, driver : Driver, interface_path, cause = nil)
+        super host, driver, interface_path, {{msg}}, cause
       end
     end
   end
 
-  driver_running_fail InterfaceExcuteFail, "Exception happend during execution of interface #{interface}#{cause ? ":\n\t#{cause.message}" : '.'}"
+  driver_running_fail InterfaceExcuteFail, "Exception happend during execution of interface #{interface_path}#{cause ? ":\n\t#{cause.message}" : '.'}"
 
   class SomeFail(Fail) < Exception
     getter fails : Array(Fail)
@@ -73,7 +73,7 @@ module Bridge
     end
 
     def self.new(fails : Array(Fail)) forall Fail
-      ret = self(Fail).allocate
+      ret = SomeFail(Fail).allocate
       ret.initialize fails
       ret
     end

@@ -1,17 +1,14 @@
 require "./spec_helper"
 
-alias Driver = Bridge::Driver
-alias Host = Bridge::Host
-
 describe Bridge do
   describe Host do
     it "collects interfaces" do
-      Dog::Interfaces.should eq({"pet" => [:api_pet]})
-      Zoo::Interfaces.should eq({"dog/pet" => [:dog, :api_pet], "dog2/pet" => [:dog2, :api_pet], "cat/fish!" => [:cat, :"api_fish!"], "zoo" => [:api_zoo]})
+      Dog::Interfaces.should eq({"name" => [:api_name], "pet" => [:api_pet]})
+      Zoo::Interfaces.should eq({"dog/pet" => [:dog, :api_pet], "dog/name" => [:dog, :api_name], "dog2/pet" => [:dog2, :api_pet], "dog2/name" => [:dog2, :api_name], "cat/fish!" => [:cat, :"api_fish!"], "cat/pet" => [:cat, :"api_fish!"], "zoo" => [:api_zoo], "pet_dog" => [:dog, :api_pet], "pet/cat" => [:cat, :"api_fish!"]})
     end
     it "interface procs" do
-      Dog::InterfaceProcs.size.should eq 1
-      dog = Dog.new
+      Dog::InterfaceProcs.size.should eq 2
+      dog = Dog.new "dog"
       data = IO::Memory.new
       origin = {12_i32, "345"}
       origin.to_msgpack data

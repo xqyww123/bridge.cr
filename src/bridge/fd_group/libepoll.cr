@@ -15,9 +15,8 @@ lib LibEpoll
   alias Uint64T = LibC::ULong
   struct Event
     events : Events
-    data : DataT
+    data : Data
   end
-  type DataT = Data
   enum Events : LibC::Int
     Epollin = 1
     Epollpri = 2
@@ -50,9 +49,10 @@ class IO::FileDescriptor
     alias Events = LibEpoll::Events
     alias FD = Int32
     @fd : LibC::Int
-    @event_code : LibEpoll::Event
+    @event_code : Events
     BUF_SIZE = 4
-    @buffer = Bytes.new BUF_SIZE * sizeof(LibEpoll::Event)
+    # @buffer = Bytes.new BUF_SIZE * sizeof(LibEpoll::Event)
+    @buffer : Pointer(LibEpoll::Event) = Pointer.malloc(sizeof(LibEpoll::Event), BUF_SIZE).as Pointer(LibEpoll::Event)
 
     def initialize(@event_code)
       @fd = LibEpoll.create1 0
@@ -61,11 +61,11 @@ class IO::FileDescriptor
     def initialize(@fd, @event_code)
     end
 
-    def add(fd : FD)
+    def add(fd : FD) : Nil
       event = LibEpoll::Event.new
       event.events = @event_code
       event.data.fd = fd
-      LibEpoll.ctl @fd, LibEpoll::CTL_ADD, fd, pointerof(event)
+      raise Errno.new "Fail to add fd into group." if 0 != LibEpoll.ctl @fd, LibEpoll::CTL_ADD, fd, pointerof(event)
     end
 
     def add(fd_owner)
@@ -84,7 +84,7 @@ class IO::FileDescriptor
     WAIT_IMEDIATELY = 0_i32
     # timeout : in milliseconds
     def wait(timeout : Int) : Iterator({FD, Events})
-      num = LibEpoll.wait @fd, @buffer, BUF_SIZE, timeout
+        num = LibEpoll.wait @fd, @buffer, BUF_SIZE, timeout
       num.times.map{|i| {@buffer[i].data.fd, @buffer[i].events} }
     end
   end

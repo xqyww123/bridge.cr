@@ -12,6 +12,14 @@ module Bridge
       alias InterfaceArgument = Bridge::InterfaceArgument({{@type}})
       alias InterfaceProc = Proc(InterfaceArgument, Nil)
       InterfaceProcs = {} of String => InterfaceProc
+
+      def self.interfaces
+        Interfaces
+      end
+
+      def self.interface_procs
+        InterfaceProcs
+      end
     end
 
     macro serialize_from_IO(type, io)
@@ -23,6 +31,13 @@ module Bridge
     end
 
     macro alias_api(path, to)
+      {%
+        to = to.stringify unless to.is_a? StringLiteral
+        path = path.stringify unless path.is_a? StringLiteral
+        interfaces = @type.constant(:Interfaces)
+        interfaces[to] = interfaces[path]
+      %}
+      {{@type}}::InterfaceProcs[{{to}}] = {{@type}}::InterfaceProcs[{{path}}]
     end
 
     # macro alias_api(path, to)
@@ -47,30 +62,45 @@ module Bridge
       }
     end
 
-    macro api(define)
-      {{define}}
+    macro def_api(define)
       {%
-        path = define.name.stringify
-        methods = [("api_" + define.name.stringify).id.symbolize]
+        name = define.name
+        args = define.args
+        path = name.stringify
+        methods = [("api_" + name.stringify).id.symbolize]
       %}
       add_interface {{path}}, {{methods}}
-      def api_{{define.name}}(connection : IO)
-        {% if define.args && define.args.size > 0 %}
-          {% for arg in define.args %}
+      def api_{{name.id}}(connection : IO)
+        {% if args && args.size > 0 %}
+          {% for arg in args %}
             {% raise "Argument #{arg} must indicates type in Bridge API" unless arg.restriction %}
             {% raise "Argument #{arg} doesn't support default value in Bridge API" if arg.default_value %}
           {% end %}
-          {% if define.args.size == 1 %}
-              respon = {{define.name}}(serialize_from_IO({{define.args.first.restriction}}, connection))
+          {% if args.size == 1 %}
+            respon = {{name.id}}(serialize_from_IO({{args.first.restriction}}, connection))
           {% else %}
-           respon = {{define.name}}(*serialize_from_IO(Tuple({% for arg in define.args %}{{arg.restriction}},{% end %}), connection))
+          respon = {{name.id}}(*serialize_from_IO(Tuple({% for arg in args %}{{arg.restriction}},{% end %}), connection))
           {% end %}
         {% else %}
-          respon = {{define.name}}
+          serialize_from_IO(Nil, connection)
+          respon = {{name.id}}
         {% end %}
         serialize_to_IO respon, connection
+        connection.flush
       end
       {{@type}}::InterfaceProcs[{{path}}] = generate_api_proc {{methods}}
+    end
+
+    macro api(define)
+      {{define}}
+      {% if define.name == "getter" || define.name == "property" %}
+        {% for ele in define.args %}
+          def_api(def {{ele.var}}
+          end)
+        {% end %}
+      {% else %}
+        def_api({{define}})
+      {% end %}
     end
 
     macro append_all_interfaces_with_prefix(to, from, method, prefix)
@@ -81,7 +111,7 @@ module Bridge
         {% for relative_path, methods in from.constant :Interfaces %}
         {%
           path = prefix + File::SEPARATOR + relative_path
-          to = to.resolve
+          to = to.resolve if to.is_a? Path
           my_methods = [method.id.symbolize] + methods
         %}
         add_interface {{path}}, {{my_methods}}
