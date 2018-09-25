@@ -1,4 +1,4 @@
-/docs/
+/doc/
 /lib/
 /bin/
 /.shards/
@@ -10,4 +10,3 @@
 # VIM
 *~
 *.swp
-

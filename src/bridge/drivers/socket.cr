@@ -5,6 +5,8 @@ module Bridge
     abstract class SocketDriver(Host, SockAddr) < Driver(Host)
       alias FD = Int
 
+      property retry_time_limit : Int32 = 32
+      property connection_retry_time_limit : Int32 = 32
       getter servers : Hash(String, ServerInfo(Host, SockAddr))
 
       abstract def generate_socket(interface : String) : Socket
@@ -12,7 +14,7 @@ module Bridge
 
       class ServerInfo(Host, SockAddr)
         getter relative_path : String
-        getter proc : Proc(InterfaceArgument(Host), Nil)
+        getter proc : Proc(Bridge::Host::InterfaceArgument(Host), Nil)
         getter addr : SockAddr
         property sock : Socket?
         property? listening : Bool = false
@@ -39,15 +41,16 @@ module Bridge
           next if server.binding?
           log info, "binding #{@host}:#{server.relative_path} on #{server.addr}"
           sock = generate_socket server.relative_path
+          fail = false
           sock.bind(server.addr) do |errno|
-            err = InterfaceBindFail.new @host, server.relative_path, errno
+            err = InterfaceBindFail.new @host, self, server.relative_path, errno
             log error, err.message
             errs << err
-            next
+            fail = true
           end
-          server.sock = sock
+          server.sock = sock unless fail
         end
-        raise SomeFail.new errs unless errs.empty?
+        raise SomeFail.new errs, self unless errs.empty?
       end
 
       def binding?
@@ -80,7 +83,7 @@ module Bridge
         @servers.each_value do |lis|
           next unless sock = lis.sock
           sock.listen do |errno|
-            err = InterfaceListenFail(Host).new @host, lis.relative_path, errno
+            err = InterfaceListenFail(Host).new @host, self, lis.relative_path, errno
             log error, err.message
             errs << err
             next
@@ -95,21 +98,28 @@ module Bridge
                 log info, "new connection on #{@host}:#{lis.relative_path}"
                 break unless conn1
                 spawn do
-                  conn = conn1.not_nil!
-                  loop do
-                    retry = false
-                    begin
-                      break if conn.peek.empty?
-                      log info, "executing #{@host}:#{lis.relative_path}"
-                      retry = true
-                      lis.proc.call InterfaceArgument(Host).new @host, conn
-                    rescue err
-                      excep = InterfaceExcuteFail.new @host, self, lis.relative_path, err
-                      log error, excep.message
-                      break unless retry
+                  begin
+                    conn = conn1.not_nil!
+                    conn_retry_times = 0
+                    loop do
+                      retry = false
+                      begin
+                        break if conn.peek.empty?
+                        log info, "executing #{@host}:#{lis.relative_path}"
+                        retry = true
+                        lis.proc.call Bridge::Host::InterfaceArgument(Host).new @host, conn
+                      rescue err
+                        excep = InterfaceExcuteFail.new @host, self, lis.relative_path, err
+                        log error, excep.message
+                        raise ConnectionRetryTimeout.new @host, self, lis.relative_path if conn_retry_times > connection_retry_time_limit
+                        conn_retry_times += 1
+                        break unless retry
+                      end
                     end
+                    log info, "connection of #{@host}:#{lis.relative_path} terminated"
+                  rescue err
+                    log error, ConnectionTerminated.new(@host, self, lis.relative_path, err)
                   end
-                  log info, "connection of #{@host}:#{lis.relative_path} terminated"
                 end
               end
             rescue err
@@ -136,14 +146,6 @@ module Bridge
 
       macro generate_init_apis
         Sockets = {} of String => Socket
-      end
-
-      class LostSocketInformation(Host, Driver) < DriverRunningFail(Host, Driver)
-        getter fd : Int32
-
-        def initialize(host : Host, driver : Driver, @fd, cause = nil)
-          initialize host, driver, "<unknown>", "Lost socket information to FileDescriptor #{fd}. Removing from listen list.", cause
-        end
       end
     end
   end

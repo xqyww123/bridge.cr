@@ -32,7 +32,7 @@ module Bridge
         begin
           {{operation}}
         {% for fail in fails %}
-        rescue err : SomeFail({{fail}})
+        rescue err : SomeFail({{fail}}, Host)
         {% end %}
         end
       end

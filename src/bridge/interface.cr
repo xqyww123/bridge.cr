@@ -1,15 +1,15 @@
 require "colorize"
 
 module Bridge
-  record InterfaceArgument(Host), obj : Host, connection : IO, path_arguments : Array(String)? = nil
-
   # replace with InterfaceProc(Host) = Proc(InterfaceArgument(Host), Nil)
 
   module Host
+    record InterfaceArgument(Host), obj : Host, connection : IO
+
     macro included
       # relative path => symbol of the method (without `api_` prefix)
       Interfaces = {} of String => Array(Symbol)
-      alias InterfaceArgument = Bridge::InterfaceArgument({{@type}})
+      alias InterfaceArgument = Bridge::Host::InterfaceArgument({{@type}})
       alias InterfaceProc = Proc(InterfaceArgument, Nil)
       InterfaceProcs = {} of String => InterfaceProc
 
@@ -85,6 +85,7 @@ module Bridge
           serialize_from_IO(Nil, connection)
           respon = {{name.id}}
         {% end %}
+        p respon
         serialize_to_IO respon, connection
         connection.flush
       end
@@ -134,7 +135,16 @@ module Bridge
         getter {{def_or_call}}
         append_all_interfaces_with_prefix {{@type}}, {{def_or_call.type}}, {{def_or_call.var}}, {{def_or_call.var.stringify}}
       {% elsif def_or_call.is_a? Assign %}
-          {% raise "Type of Bridge Directory must be indicated explicily, try `directory #{def_or_call.target} : Type = #{def_or_call.value}`\ndirectory #{def_or_call}" %}
+        {% raise "Type of Bridge Directory must be indicated explicily, try `directory #{def_or_call.target} : Type = #{def_or_call.value}`\ndirectory #{def_or_call}" %}
+      {% elsif def_or_call.is_a? Call && def_or_call.block %}
+        {% if def_or_call.name == "getter" || def_or_call.name == "property" %}
+          {{def_or_call}}
+          {% for arg in def_or_call.args %}
+              append_all_interfaces_with_prefix {{@type}}, {{arg.type}}, {{arg.var}}, {{arg.var.stringify}}
+          {% end %}
+        {% else %}
+          {% raise "Return type in Bridge Directory must be indicated explicitly:\ndirectory #{def_or_call}\nTry: directory #{def_or_call} : RETURN_TYPE" %}
+        {% end %}
       {% else %}
         {% dirname = def_or_call %}
         class {{dirname.id.camelcase}}
