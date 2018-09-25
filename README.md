@@ -1,7 +1,7 @@
 Bridge
 ===
 
-A general purposed, cross-protocol and cross-serialization RPC framework, designed for easiness, simpleness and perfromance.
+A general purposed, cross-protocol and cross-serialization RPC framework, designed for easiness, simpleness and performance.
 
 ## Installation
 
@@ -22,7 +22,7 @@ require "bridge"
 # Msgpack is the default serialization protocol
 require "msgpack"
 
-# API are defined as the rubyist way.
+# APIs are defined as the rubyist way.
 class Dog
   include Bridge::Host
 
@@ -36,9 +36,9 @@ class Zoo
   include Bridge::Host
 
   directory getter dog : Dog
-  # A directroy is a getter or any method returns Host
+  # A directory is a getter or any method returns Host
   # while "path/to/api" corresponds to `path.to.api`.
-  # Currently path with argument like "book/:id/get" isn't supported, but it's on the plan.
+  # Currently path with arguments like "book/:id/get" isn't supported, but it's on the plan.
 
   def initialize(@dog)
   end
@@ -58,7 +58,7 @@ server.listen
 exit if gets
 ```
 
-Call the api in other program and other language. Illustrate using Ruby:
+Then, call the API in other programs and other languages. Illustrate using Ruby:
 
 ``` ruby
 require 'msgpack'
@@ -79,17 +79,19 @@ u2 = MessagePack::Unpacker.new s2
 puts "Name of the dog is #{u2.unpack}"
 ```
 
+You can run the code on your computer. They locate in [spec/example/simple.cr & spec/example/simple.rb](https://github.com/xqyww123/bridge.cr/tree/master/spec/example/).
+
 ### Detail
 
 Bridge consists two parts : `Host` & `Driver`.
 
 #### Host
 
-`Host` maintains two constants `Interfaces` and `InterfaceProcs`. It also provide class methods `interfaces` and `interface_procs` to accquire those two constants.
+`Host` maintains two constants `Interfaces` and `InterfaceProcs`. It also provides class methods `interfaces` and `interface_procs` to acquire those two constants.
 
-Macro `api` accepts a method definition or many other form, see [an example with more detail](). `api` wraps the method with a new one having the `api_` prefix, and register information into `Interfaces` & `InterfaceProc`.
+Macro `API` accepts a method definition or many other forms, see [an example with more detail](). `API` wraps the method with a new one having the `api_` prefix, and register information into `Interfaces` & `InterfaceProc`.
 
-The wrapper has form `def api_APINAME(connection : IO) : Nil`, and it reads arguments from IO and serializes respons back into IO. See [Serialization]() for more details. For example, `api def xxx` will generate a method `api_xxx(connection : IO)` calling `xxx`.
+The wrapper has form `def api_APINAME(connection : IO) : Nil`, and it reads arguments from IO and serializes responses back into IO. See [Serialization](https://github.com/xqyww123/bridge.cr/wiki/Serialization) for more details. For example, `api def xxx` will generate a method `api_xxx(connection : IO)` calling `xxx`.
 
 `Interfaces` is a `Hash(String, Array(Symbol))` mapping interface path to calling chain. For example, calling chain of interface "path/to/api_xxx" is exactly `[:path, :to, :api_xxx]`.
 
@@ -99,10 +101,10 @@ For example, the Proc of "path/to/api_xxx" is `(InterfaceArgument(Host), Nil)->{
 
 #### Driver
 
-According those two constant of any given Host, Driver listens and waits requests, manages connections, figures out which interface to call, and triggers the call finally.
+According to those two constants of any given Host, Driver listens and waits for requests, manages connections, figures out which interface to call, and triggers the call finally.
 
-Different Driver could implements on different protocal or framework.
-Like `UnixSocket` binds sockets for each interfaces following the directory structure, or all in one socket with multiplex depeneding on configure.
+Different Driver could be implemented on different protocols or framework.
+Like `UnixSocket` binds sockets for each interface following the directory structure, or all in one socket with multiplex depending on configure.
 
 In this example, the `UnixSocket` listens on following sockets:
 
@@ -111,13 +113,13 @@ In this example, the `UnixSocket` listens on following sockets:
 /tmp/socks_folder/dog/name
 ```
 
-By default, `UnixSocket` opens as many sockets as interfaces following the directory structure, because of lacking a standard way for multiplex.
+By default, `UnixSocket` opens as many sockets as interfaces following the directory structure, because of lacking a standard way for the multiplex.
 
-Currently, only default behaviour of `UnixSocket` implemented but any other Drivers.
+Currently, the only default behaviour of `UnixSocket` implemented but any other Drivers.
 
 ## Contributing
 
-Contribution is highly welcome, especially on Drivers.
+Contributions are highly welcome, especially on Drivers.
 
 1. Fork it (<https://github.com/xqyww123/bridge/fork>)
 2. Create your feature branch (`git checkout -b my-new-feature`)
