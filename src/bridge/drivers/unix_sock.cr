@@ -26,10 +26,6 @@ module Bridge
           {relative_path, Socket::UNIXAddress.new(absolutize relative_path)}
         end
       end
-
-      def client(interface : String) : Socket
-        UNIXSocket.new ZooServer.absolutize interface
-      end
     end
   end
 end

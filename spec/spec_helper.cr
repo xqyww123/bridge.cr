@@ -4,8 +4,7 @@ require "msgpack"
 require "tempfile.cr"
 require "./example_host.cr"
 
-alias Driver = Bridge::Driver
-alias Host = Bridge::Host
+include Bridge
 
 class Tempfile
   def self.tempdir(extension) : String

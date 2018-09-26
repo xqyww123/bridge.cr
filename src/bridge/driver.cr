@@ -8,14 +8,16 @@ module Bridge
     def initialize(@host, @logger = Logger.new STDERR)
     end
 
-    def call_api(relative_path : String)
-      err = InterfaceNotFound(Host).new @host, relative_path
-      log error, err.message
-      raise err
-    end
-
     macro log(type, info)
       @logger.{{type.id}}({{info}}, self)
+    end
+
+    macro log_excep(type, excep)
+      begin
+        %excep = excep
+        log {{type.id}}, %excep.message
+        %excep
+      end
     end
 
     abstract def bind
@@ -36,6 +38,16 @@ module Bridge
         {% end %}
         end
       end
+
+      private def call_api(interface_path : String, arg : Bridge::Host::InterfaceArgument(Host))
+        proc = @host.interface_procs[interface_path]?
+        raise log_excep error, InterfaceNotFound(Host).new @host, self, interface_path unless proc
+        begin
+          proc.call arg
+        rescue err
+          raise log_excep error, InterfaceExcuteFail.new @host, self, interface_path, err
+        end
+      end
     end
 
     tolerate bind, InterfaceBindFail(Host)
@@ -44,8 +56,6 @@ module Bridge
     def to_s(io : IO)
       io << self.class
     end
-
-    abstract def client(interface : String)
   end
 end
 

@@ -87,7 +87,6 @@ module Bridge
         {% end %}
         p respon
         serialize_to_IO respon, connection
-        connection.flush
       end
       {{@type}}::InterfaceProcs[{{path}}] = generate_api_proc {{methods}}
     end

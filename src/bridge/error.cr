@@ -4,8 +4,8 @@ module Bridge
 
   class InterfaceFail(Host) < BridgeFail
     getter interface_path : String
-    getter host : Host
-    getter driver : Driver(Host)
+    getter host : Host | String
+    getter driver : Driver(Host) | Client(Host)
 
     def initialize(@host, @driver, @interface_path, msg, cause = nil)
       super msg, cause
@@ -26,12 +26,15 @@ module Bridge
     end
   end
 
-  macro interface_fail(name, message, &block)
+  macro interface_fail(name, message)
     class {{name.id.camelcase}}(Host) < InterfaceFail(Host)
       def initialize(host : Host, driver, interface_path, cause = nil)
         super host, driver, interface_path, {{message}}, cause
       end
-      {{ yield }}
+
+      def initialize(host : String, driver, interface_path, cause = nil)
+        super host, driver, interface_path, {{message}}, cause
+      end
     end
   end
 
@@ -42,6 +45,7 @@ module Bridge
   interface_fail InterfaceTerminated, "Interface #{host}##{interface_path} has terminated, because: #{cause.try(&.message) || "no reason"}"
   interface_fail ConnectionTerminated, "Connection on interface #{host}##{interface_path} has terminated, because: #{cause.try(&.message) || "no reason"}"
   interface_fail ConnectionRetryTimeout, "Faild too many times."
+  interface_fail IterfaceConnectFail, "Fail to connect interface #{host}##{interface_path}, because: #{cause.try &.message}"
 
   class SomeFail(Fail, Host) < Exception
     getter fails : Array(Fail)

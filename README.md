@@ -36,8 +36,8 @@ class Zoo
   include Bridge::Host
 
   directory getter dog : Dog
-  # A directory is a getter or any method returns Host
-  # while "path/to/api" corresponds to `path.to.api`.
+  # A directory is a getter or any method returns Host.
+  # It maps path "path/to/api" to interface `path.to.api`.
   # Currently path with arguments like "book/:id/get" isn't supported, but it's on the plan.
 
   def initialize(@dog)
@@ -56,6 +56,13 @@ server = Bridge::Driver::UnixSocket.new zoo, "/tmp/socks_folder"
 server.listen
 
 exit if gets
+```
+
+`UnixServer` listens on following files under Msgpack protocol by default.
+
+```
+/tmp/socks_folder/welcome
+/tmp/socks_folder/dog/name
 ```
 
 Then, call the API in other programs and other languages. Illustrate using Ruby:

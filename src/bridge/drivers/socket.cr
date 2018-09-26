@@ -10,7 +10,7 @@ module Bridge
       getter servers : Hash(String, ServerInfo(Host, SockAddr))
 
       abstract def generate_socket(interface : String) : Socket
-      abstract def generate_socket_address(interfaces : Iterator(String)) : SockAddr
+      abstract def generate_socket_address(interfaces : Iterator(String)) : Iterator({String, SockAddr})
 
       class ServerInfo(Host, SockAddr)
         getter relative_path : String
@@ -142,10 +142,6 @@ module Bridge
       def close
         stop_listen
         @servers.clear
-      end
-
-      macro generate_init_apis
-        Sockets = {} of String => Socket
       end
     end
   end
