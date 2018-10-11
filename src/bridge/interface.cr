@@ -146,11 +146,11 @@ module Bridge
         {% end %}
       {% else %}
         {% dirname = def_or_call %}
-        class {{dirname.id.camelcase}}
+        struct {{dirname.id.camelcase}}
           include ::Bridge::Host
           {{ yield }}
         end
-        directory {{dirname.id}} : {{dirname.id.camelcase}}
+        directory {{dirname.id}} : {{dirname.id.camelcase}} = {{dirname.id.camelcase}}.new
       #  % raise "Syntax Error : invalid directory:\ndirectory #{def_or_call}" %}
       {% end %}
     end

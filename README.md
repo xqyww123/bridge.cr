@@ -10,7 +10,7 @@ Add this to your application's `shard.yml`:
 ```yaml
 dependencies:
   bridge:
-    github: xqyww123/bridge
+    github: xqyww123/bridge.cr
 ```
 
 ## Usage
