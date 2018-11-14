@@ -2,7 +2,7 @@ require "../spec_helper.cr"
 
 alias UnixSocket = Bridge::Driver::UnixSocket
 
-BasePath  = Tempfile.tempdir "bridge.cr-zoo"
+BasePath  = File.tempname "bridge.cr-zoo", ""
 ZooServer = Bridge::Driver::UnixSocket.new ZooVar, BasePath
 ZooClient = Bridge::Client::UnixSocket(Zoo).new BasePath
 
