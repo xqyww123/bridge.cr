@@ -1,3 +1,4 @@
+require "yaml"
 require "../src/bridge"
 
 class Dog
@@ -47,9 +48,13 @@ class Zoo
   # Interfaces is a Hash from interface name (the path of the interface, as a String) to the path of the calling chain.
   # Every api will generate a wrapper method called `api_<method name>`, which parse argument from IO and then serialize the result of the method into IO, with only one argument of IO type and Nil return.
   # Here, `api_name` is the wrapper of the method `name`.
-  puts "Zoo's api : #{Interfaces}" # => {"dog/pet" => [:dog, :api_pet], "dog/name" => [:dog, :api_name], "zoo" => [:api_zoo], ...}
+  puts "Zoo's api : #{Interfaces.to_yaml}" # => {"dog/pet" => [:dog, :api_pet], "dog/name" => [:dog, :api_name], "zoo" => [:api_zoo], ...}
   # InterfaceProcs is a Hash from interface name to the Proc calling the chain
-  puts "Zoo's api : #{InterfaceProcs}" # => {"dog/pet" => #<Proc(Bridge::InterfaceArgument(Zoo), Nil):0x47a580>, ...}
+  # puts "Zoo's api : #{APIs::InterfaceProcs}" # => {"dog/pet" => #<Proc(Bridge::InterfaceArgument(Zoo), Nil):0x47a580>, ...}
 end
 
 ZooVar = Zoo.new Dog.new("alice"), Dog.new("bob"), Zoo::Cat.new
+Bridge.def_format ZooResponFormat, :hash, data_field: "ret", exception_field: "err"
+Bridge.def_serializer ZooSerializer, argument_as: :hash, response_format: ZooResponFormat
+Bridge.bind_host ZooAPIs, Zoo, ZooSerializer
+Bridge.bind_host DogAPIs, Dog, ZooSerializer

@@ -1,11 +1,21 @@
 require "logger"
+require "./mutiplex.cr"
+require "./connection_injector.cr"
 
 module Bridge
-  abstract class Driver(Host)
-    getter host : Host
+  abstract class Driver(HostBinding)
+    getter host_binding : HostBinding
+    delegate host, serializer, to: @host_binding
     getter logger : Logger
+    getter multiplexer : Multiplexer(HostBinding)
+    getter injectors_everything
+    getter injectors_multiplex
+    getter injectors_calling
 
-    def initialize(@host, @logger = Logger.new STDERR)
+    def initialize(@host_binding, @multiplexer, @logger = Logger.new STDERR)
+      @injectors_everything = [] of Injector::Everything(HostBinding)
+      @injectors_multiplex = [] of Injector::Multiplex(HostBinding)
+      @injectors_calling = [] of Injector::Calling(HostBinding)
     end
 
     macro log(type, info)
@@ -14,7 +24,7 @@ module Bridge
 
     macro log_excep(type, excep)
       begin
-        %excep = excep
+        %excep = {{excep}}
         log {{type.id}}, %excep.message
         %excep
       end
@@ -34,27 +44,36 @@ module Bridge
         begin
           {{operation}}
         {% for fail in fails %}
-        rescue err : SomeFail({{fail}}, Host)
+        rescue err : SomeFail({{fail}}, typeof(host))
         {% end %}
         end
       end
 
-      private def call_api(interface_path : String, arg : Bridge::Host::InterfaceArgument(Host))
-        proc = @host.interface_procs[interface_path]?
-        raise log_excep error, InterfaceNotFound(Host).new @host, self, interface_path unless proc
-        begin
-          proc.call arg
-        rescue err
-          raise log_excep error, InterfaceExcuteFail.new @host, self, interface_path, err
+      protected def call_api(multiplexed_interface : String, connection : IO)
+        arg = @host_binding.make_interface_argument connection
+        @injectors_everything.each {|inj| arg = inj.inject arg }
+        marg = arg
+        @injectors_multiplex.each {|inj| marg = inj.inject marg }
+        carg = arg
+        @injectors_calling.each {|inj| carg = inj.inject carg }
+        interface_path = @multiplexer.select multiplexed_interface, marg
+        proc = HostBinding.interface_procs[interface_path]?
+        raise log_excep error, InterfaceNotFound.new host, self, interface_path unless proc
+        loop do
+          begin
+            proc.call carg
+          rescue err
+            raise log_excep error, InterfaceExcuteFail.new host, self, interface_path, err
+          end
         end
       end
     end
 
-    tolerate bind, InterfaceBindFail(Host)
-    tolerate listen, InterfaceListenFail(Host)
+    tolerate bind, InterfaceBindFail(typeof(host), typeof(self))
+    tolerate listen, InterfaceListenFail(typeof(host), typeof(self))
 
     def to_s(io : IO)
-      io << self.class
+      io << host << " on " << self.class
     end
   end
 end

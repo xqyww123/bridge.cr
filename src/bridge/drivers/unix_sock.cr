@@ -7,8 +7,8 @@ module Bridge
       getter base_path : String
       getter socket_type : Socket::Type
 
-      def initialize(host : Host, @base_path, @socket_type = Socket::Type::STREAM, logger = Logger.new STDERR)
-        super host, logger
+      def initialize(host : Host, @base_path, multiplexer = Multiplexer::NoMultiplex(Host).new, @socket_type = Socket::Type::STREAM, logger = Logger.new STDERR)
+        super host, multiplexer, logger
       end
 
       def absolutize(relative_path : String)
@@ -21,9 +21,13 @@ module Bridge
         UNIXSocket.new Socket::Family::UNIX, @socket_type
       end
 
-      def generate_socket_address(interfaces : Iterator(String))
-        interfaces.map do |relative_path|
-          {relative_path, Socket::UNIXAddress.new(absolutize relative_path)}
+      def generate_socket_address(interface : String)
+        Socket::UNIXAddress.new absolutize interface
+      end
+
+      def multiplex(interfaces : Array(String)) : Iterator({String, String})
+        interfaces.each.map do |origin_interfaces|
+          {origin_interfaces, origin_interfaces}
         end
       end
     end

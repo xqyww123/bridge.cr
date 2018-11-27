@@ -2,48 +2,56 @@ require "../error.cr"
 
 module Bridge
   abstract class Driver
-    abstract class SocketDriver(Host, SockAddr) < Driver(Host)
-      alias FD = Int
-
-      property retry_time_limit : Int32 = 32
+    # A general purposed socket dirver.
+    abstract class SocketDriver(HostBinding, SockAddr) < Driver(HostBinding)
+      # Tolerance limit of the error in a connection. Exceeding the limit, the connection will terminate by force.
       property connection_retry_time_limit : Int32 = 32
-      getter servers : Hash(String, ServerInfo(Host, SockAddr))
+      @servers : Hash(String, ServerInfo(HostBinding, SockAddr))
 
-      abstract def generate_socket(interface : String) : Socket
-      abstract def generate_socket_address(interfaces : Iterator(String)) : Iterator({String, SockAddr})
+      # All the server running, a map from the multiplexed to `ServerInfo`.
+      def servers : Mapping(String, ServerInfo(HostBinding, SockAddr))
+        @servers
+      end
 
-      class ServerInfo(Host, SockAddr)
-        getter relative_path : String
-        getter proc : Proc(Bridge::Host::InterfaceArgument(Host), Nil)
+      # generate a `Socket` given the `multiplexed_interface`
+      abstract def generate_socket(multiplexed_interface : String) : Socket
+      # generate the `SockAddr` given the `multiplexed_interface`
+      abstract def generate_socket_address(multiplexed_interfaces : String) : SockAddr
+
+      class ServerInfo(HostBinding, SockAddr)
+        getter multiplexed_interface : String
         getter addr : SockAddr
         property sock : Socket?
         property? listening : Bool = false
 
-        def initialize(@relative_path, @proc, @addr, @sock = nil)
+        def initialize(@multiplexed_interface, @addr, @sock = nil)
         end
 
+        # Whether the server bound.
         def binding?
-          !!sock
+          !!@sock
         end
       end
 
-      def initialize(host : Host, logger = Logger.new STDERR)
-        super host, logger
-        @servers = Hash(String, ServerInfo(Host, SockAddr)).new nil, Host.interfaces.size
-        generate_socket_address(Host.interfaces.each_key).each do |relative_path, sock_addr|
-          @servers[relative_path] = ServerInfo(Host, SockAddr).new relative_path, Host.interface_procs[relative_path], sock_addr
+      def initialize(host : HostBinding, multiplexer = nil, logger = Logger.new STDERR)
+        super host, multiplexer, logger
+        @servers = Hash(String, ServerInfo(HostBinding, SockAddr)).new nil, @multiplexer.multiplexed_size
+        HostBinding.interfaces.keys.each do |origin_interface|
+          multiplexed_interface = @multiplexer.multiplex origin_interface
+          server = ServerInfo(HostBinding, SockAddr).new multiplexed_interface, generate_socket_address(multiplexed_interface)
+          @servers[origin_interface] = server
         end
       end
 
       def bind
-        errs = [] of InterfaceBindFail(Host)
+        errs = [] of InterfaceBindFail(typeof(host), typeof(self))
         @servers.each_value do |server|
           next if server.binding?
-          log info, "binding #{@host}:#{server.relative_path} on #{server.addr}"
-          sock = generate_socket server.relative_path
+          log info, "binding #{host}:#{server.multiplexed_interface} on #{server.addr}"
+          sock = generate_socket server.multiplexed_interface
           fail = false
           sock.bind(server.addr) do |errno|
-            err = InterfaceBindFail.new @host, self, server.relative_path, errno
+            err = InterfaceBindFail.new host, self, server.multiplexed_interface, errno
             log error, err.message
             errs << err
             fail = true
@@ -57,11 +65,12 @@ module Bridge
         @servers.each_value.any? &.binding?
       end
 
+      # `interface_path` could be a `ServerInfo` or origin interface.
       def binding?(interface_path)
         if interface_path.is_a? ServerInfo
           interface_path.binding?
         else
-          @servers[interface_path].binding?
+          @servers[@multiplexer.multiplex interface_path].binding?
         end
       end
 
@@ -69,21 +78,22 @@ module Bridge
         @servers.each_value.any? &.listening?
       end
 
+      # `interface_path` could be a `ServerInfo` or origin interface.
       def listening?(interface_path)
         if interface_path.is_a? ServerInfo
           interface_path.listening?
         else
-          @servers[interface_path]?.try &.listening?
+          @servers[@multiplexer.multiplex interface_path]?.try &.listening?
         end
       end
 
       def listen
         bind?
-        errs = [] of InterfaceListenFail(Host)
+        errs = [] of InterfaceListenFail(typeof(host), typeof(self))
         @servers.each_value do |lis|
           next unless sock = lis.sock
           sock.listen do |errno|
-            err = InterfaceListenFail(Host).new @host, self, lis.relative_path, errno
+            err = InterfaceListenFail.new host, self, lis.multiplexed_interface, errno
             log error, err.message
             errs << err
             next
@@ -95,45 +105,24 @@ module Bridge
             begin
               loop do
                 conn1 = sock.not_nil!.accept?
-                log info, "new connection on #{@host}:#{lis.relative_path}"
                 break unless conn1
+                log info, "new connection on mutiplexed #{host}:#{lis.multiplexed_interface}"
                 spawn do
-                  begin
-                    conn = conn1.not_nil!
-                    conn_retry_times = 0
-                    loop do
-                      retry = false
-                      begin
-                        break if conn.peek.empty?
-                        log info, "executing #{@host}:#{lis.relative_path}"
-                        retry = true
-                        lis.proc.call Bridge::Host::InterfaceArgument(Host).new @host, conn
-                      rescue err
-                        excep = InterfaceExcuteFail.new @host, self, lis.relative_path, err
-                        log error, excep.message
-                        raise ConnectionRetryTimeout.new @host, self, lis.relative_path if conn_retry_times > connection_retry_time_limit
-                        conn_retry_times += 1
-                        break unless retry
-                      end
-                    end
-                    log info, "connection of #{@host}:#{lis.relative_path} terminated"
-                  rescue err
-                    log error, ConnectionTerminated.new(@host, self, lis.relative_path, err)
-                  end
+                  call_api(lis.multiplexed_interface, conn1.not_nil!)
                 end
+              rescue err
+                log warn, Errno.new("Error occured in Server #{lis.multiplexed_interface}, trying to restart the server").message
+                sock.not_nil!.close if sock = lis.sock
+                lis.sock = nil
+                listen
               end
-            rescue err
-              log warn, Errno.new("Error occured in Server #{lis.relative_path}, trying to restart the server").message
-              sock.not_nil!.close if sock = lis.sock
-              lis.sock = nil
-              listen
             end
           end
         end
       end
 
       def stop_listen
-        @servers.each do |server|
+        @all_servers.each do |server|
           server.sock.close
           server.sock = nil
         end
@@ -141,6 +130,7 @@ module Bridge
 
       def close
         stop_listen
+        @all_servers.clear
         @servers.clear
       end
     end

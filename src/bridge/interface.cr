@@ -1,34 +1,36 @@
 require "colorize"
+require "./serializer.cr"
 
 module Bridge
-  # replace with InterfaceProc(Host) = Proc(InterfaceArgument(Host), Nil)
+  # Information of APIs, a hash from interface path to information table, where `path` is the method chain to the destination interface (path thought directories), `sig` is the signature of the calling.
+  alias ApiInfo = Hash(String, NamedTuple(path: Array(Symbol), sig: NamedTuple(args: Hash(Symbol, String), ret: String)))
 
+  # All parameters required to call an interface.
+  record InterfaceArgument(HostBinding), host_api : HostBinding, connection : IO do
+    delegate host, serializer, to: @host_api
+    delegate serialize, serialize_respon, deserialize, deserialize_request, to: @serializer
+  end
+
+  # Once included, `Interfaces : ApiInfo` will be created where stores the api information, and several macro and methods will be defined to help build the Host including:
+  # - `.interfaces` : returns the `Interface` constant. It's convinient when the Host is a generic.
   module Host
-    record InterfaceArgument(Host), obj : Host, connection : IO
-
     macro included
-      # relative path => symbol of the method (without `api_` prefix)
-      Interfaces = {} of String => Array(Symbol)
-      alias InterfaceArgument = Bridge::Host::InterfaceArgument({{@type}})
-      alias InterfaceProc = Proc(InterfaceArgument, Nil)
-      InterfaceProcs = {} of String => InterfaceProc
+      # All api information of the Host
+      Interfaces = {} of String => {path: Array(Symbol), sig: {args: Hash(Symbol, String), ret: String}}
+
 
       def self.interfaces
         Interfaces
       end
-
-      def self.interface_procs
-        InterfaceProcs
-      end
     end
 
-    macro serialize_from_IO(type, io)
-      {{type}}.from_msgpack {{io}}
-    end
+    # macro serialize_from_IO(type, io)
+    #  {{type}}.from_msgpack {{io}}
+    # end
 
-    macro serialize_to_IO(object, io)
-      {{object}}.to_msgpack {{io}}
-    end
+    # macro serialize_to_IO(object, io)
+    #  {{object}}.to_msgpack {{io}}
+    # end
 
     macro alias_api(path, to)
       {%
@@ -37,7 +39,6 @@ module Bridge
         interfaces = @type.constant(:Interfaces)
         interfaces[to] = interfaces[path]
       %}
-      {{@type}}::InterfaceProcs[{{to}}] = {{@type}}::InterfaceProcs[{{path}}]
     end
 
     # macro alias_api(path, to)
@@ -48,47 +49,57 @@ module Bridge
     #  {{@type}}::InterfaceProcs[%path] = {{@type}}::InterfaceProcs[%old]
     # end
 
-    macro add_interface(path, methods)
+    macro add_interface(path, info)
       {%
         raise "Interface with path #{path} has already been defined" if @type.constant(:Interfaces)[path]
-        @type.constant(:Interfaces)[path] = methods
+        @type.constant(:Interfaces)[path] = info
       %}
-    end
-
-    macro generate_api_proc(methods)
-      ->(args : {{@type}}::InterfaceArgument) {
-        args.obj{% for method in methods %}.{{method.id}}{% end %}(args.connection)
-        nil
-      }
     end
 
     macro def_api(define)
       {%
         name = define.name
         args = define.args
+        args = [] of Symbol unless args
         path = name.stringify
         methods = [("api_" + name.stringify).id.symbolize]
       %}
-      add_interface {{path}}, {{methods}}
-      def api_{{name.id}}(connection : IO)
-        {% if args && args.size > 0 %}
-          {% for arg in args %}
-            {% raise "Argument #{arg} must indicates type in Bridge API" unless arg.restriction %}
-            {% raise "Argument #{arg} doesn't support default value in Bridge API" if arg.default_value %}
-          {% end %}
-          {% if args.size == 1 %}
-            respon = {{name.id}}(serialize_from_IO({{args.first.restriction}}, connection))
-          {% else %}
-          respon = {{name.id}}(*serialize_from_IO(Tuple({% for arg in args %}{{arg.restriction}},{% end %}), connection))
-          {% end %}
-        {% else %}
-          serialize_from_IO(Nil, connection)
-          respon = {{name.id}}
+      {% for arg in args %}
+        {% raise "Argument #{arg} must indicate type, in Bridge API" unless arg.restriction %}
+        {% raise "Argument #{arg} doesn't support default value in Bridge API" if arg.default_value %}
+      {% end %}
+      add_interface {{path}}, {path: {{methods}}, sig: {args: ({
+        {% for arg in args %}
+            {{arg.name.symbolize}} => {{arg.restriction.stringify}},
         {% end %}
+      } of Symbol => String), ret: {{define.return_type.stringify}} } }
+      def api_{{name.id}}(arg : InterfaceArgument(HostBinding)) : Nil forall HostBinding
+        {% begin %}
+        {% if args && args.size > 0 %}
+          request = arg.serializer.deserialize_request arg.connection, NamedTuple(
+          {% for arg in args %}
+            {{arg.name.stringify}}: {{arg.restriction}},
+          {% end %}
+          )
+          respon = begin
+          {{name.id}}(
+          {% for arg in args %}
+              {{arg.name.stringify}}: request[{{arg.name.symbolize}}],
+          {% end %}
+          )
+        {% else %}
+          arg.serializer.deserialize_request arg.connection, Nil
+          respon = begin
+          {{name.id}}
+        {% end %}
+        rescue err
+          arg.serializer.serialize_respon arg.connection, nil, err
+          return
+        end
         p respon
-        serialize_to_IO respon, connection
+        arg.serializer.serialize_respon arg.connection, respon
+        {% end %}
       end
-      {{@type}}::InterfaceProcs[{{path}}] = generate_api_proc {{methods}}
     end
 
     macro api(define)
@@ -104,18 +115,17 @@ module Bridge
     end
 
     macro append_all_interfaces_with_prefix(to, from, method, prefix)
-        {%
-          raise "#{from} not be resolved. Make sure it's a Bridge::Host." unless from = from.resolve
-          raise "#{from}::Interfaces not be resolved. Make sure it's a Bridge::Host." unless from.constant :Interfaces
-        %}
-        {% for relative_path, methods in from.constant :Interfaces %}
+      {%
+        raise "#{from} not be resolved. Make sure it's a Bridge::Host." unless from = from.resolve
+        raise "#{from}::Interfaces not be resolved. Make sure it's a Bridge::Host." unless from.constant :Interfaces
+      %}
+      {% for relative_path, info in from.constant :Interfaces %}
         {%
           path = prefix + File::SEPARATOR + relative_path
           to = to.resolve if to.is_a? Path
-          my_methods = [method.id.symbolize] + methods
+          my_methods = [method.id.symbolize] + info[:path]
         %}
-        add_interface {{path}}, {{my_methods}}
-        {{to}}::InterfaceProcs[{{path}}] = generate_api_proc {{my_methods}}
+        add_interface {{path}}, {path: {{my_methods}}, sig: {{info[:sig]}} }
       {% end %}
     end
 
@@ -153,6 +163,50 @@ module Bridge
         directory {{dirname.id}} : {{dirname.id.camelcase}} = {{dirname.id.camelcase}}.new
       #  % raise "Syntax Error : invalid directory:\ndirectory #{def_or_call}" %}
       {% end %}
+    end
+
+    macro api_info
+    end
+
+    module APIs
+      macro generate_api_proc(info)
+        ->(args : InterfaceArgument) {
+          args.host{% for method in info[:path] %}.{{method.id}}{% end %}(args)
+          nil
+        }
+      end
+    end
+  end
+
+  macro bind_host(name, hostT, serializerT)
+    {% hostT = hostT.resolve %}
+    struct {{name}}
+      include ::Bridge::Host::APIs
+      alias InterfaceArgument = Bridge::InterfaceArgument(self)
+      alias InterfaceProc = Proc(InterfaceArgument, Nil)
+      InterfaceProcs = {
+        {% for path, info in hostT.constant :Interfaces %}
+          {{path}} => generate_api_proc({{info}}),
+        {% end %}
+      } of String => InterfaceProc
+
+      getter host : {{hostT}}
+      getter serializer : {{serializerT}}
+
+      def initialize(@host, @serializer)
+      end
+
+      def self.interfaces
+        {{hostT}}::Interfaces
+      end
+
+      def self.interface_procs
+        InterfaceProcs
+      end
+
+      def make_interface_argument(connection : IO)
+        Bridge::InterfaceArgument.new self, connection
+      end
     end
   end
 end
