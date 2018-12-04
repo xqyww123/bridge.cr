@@ -1,22 +1,20 @@
 module Bridge
-  abstract class Client(Host)
-    class UnixSocket(Host) < SocketClient(Host, Socket::UNIXAddress)
+  abstract class Client(HostT, SerializerT)
+    class UnixSocket(HostT, SerializerT) < SocketClient(HostT, SerializerT, Socket::UNIXAddress)
       getter base_path : String
 
-      def initialize(@base_path)
+      def initialize(@base_path, serializer, multiplexer, @retry_time_limit = 3_u32, logger = Logger.new STDERR)
+        super serializer, multiplexer, logger
       end
 
-      def absolutize(interface_path)
+      # :nodoc:
+      private def absolutize(interface_path)
         File.join base_path, interface_path
       end
 
-      protected def generate_socket(mapped_interface : String)
-        addr = Socket::UNIXAddress.new absolutize mapped_interface
+      protected def generate_socket(multiplexed_interface : String)
+        addr = Socket::UNIXAddress.new absolutize multiplexed_interface
         {Socket.unix, addr}
-      end
-
-      protected def interface_mapping(interface : String)
-        interface
       end
     end
   end

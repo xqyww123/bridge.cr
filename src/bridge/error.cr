@@ -5,11 +5,11 @@ module Bridge
   class InterfaceFail(Host, Driver) < BridgeFail
     # The multiplexed for most time.
     getter interface_path : String
-    getter host_api : Host | String
+    getter host : Host
     getter driver : Driver
-    delegate host, to: @host_api
+    delegate host, to: @host
 
-    def initialize(@host_api, @driver, @interface_path, msg, cause = nil)
+    def initialize(@host, @driver, @interface_path, msg, cause = nil)
       super "#{@driver} : #{msg}", cause
     end
 
@@ -48,11 +48,12 @@ module Bridge
   interface_fail ConnectionTerminated, "Connection on interface #{host}##{interface_path} has terminated, because: #{cause.try(&.message) || "no reason"}"
   interface_fail ConnectionRetryTimeout, "Faild too many times."
   interface_fail IterfaceConnectFail, "Fail to connect interface #{host}##{interface_path}, because: #{cause.try &.message}"
-  interface_fail BadRequest, "Bad request on #{host}##{interface_path}"
+  # Triggered when client receive an exception.
+  interface_fail RecvException, "An exception received from #{host}##{interface_path}"
 
-  class SomeFail(Fail, Host) < Exception
+  class SomeFail(Fail, Driver) < Exception
     getter fails : Array(Fail)
-    getter driver : Driver(Host)
+    getter driver : Driver
 
     def initialize(@fails, @driver, cause = nil)
       super String.build { |str|
@@ -61,8 +62,8 @@ module Bridge
       }, cause
     end
 
-    def self.new(fails : Array(Fail), driver : Driver(Host), cause = nil) forall Fail, Host
-      ret = SomeFail(Fail, Host).allocate
+    def self.new(fails : Array(Fail), driver : Driver, cause = nil) forall Fail, Driver
+      ret = SomeFail(Fail, Driver).allocate
       ret.initialize fails, driver, cause
       ret
     end

@@ -1,4 +1,5 @@
 require "socket"
+require "./bridge/etc/logger.cr"
 require "./bridge/*"
 
 module Bridge

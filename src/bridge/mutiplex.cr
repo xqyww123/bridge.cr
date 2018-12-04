@@ -1,20 +1,20 @@
 module Bridge
-  abstract class Multiplexer(HostBinding)
+  abstract class Multiplexer(HostT, SerializerT)
     def origins
-      HostBinding.interfaces.keys
+      HostT.interfaces.keys
     end
 
     abstract def multiplex(origin_interface : String) : String
     abstract def multiplexed_size : Int32
 
-    abstract def multiplex(origin_interface : String, arg : InterfaceArgument(HostBinding)) : String
+    abstract def multiplex(origin_interface : String, arg : InterfaceArgument(SerializerT)) : String
     # Returns the origin interface of the `connection` on the multiplexed interface.
-    abstract def select(multiplexed_interface : String, arg : InterfaceArgument(HostBinding)) : String
+    abstract def select(multiplexed_interface : String, arg : InterfaceArgument(SerializerT)) : String
 
     # if the multiplexer compact all into one interface, the name should be `UNIQUE_INTERFACE`
     UNIQUE_INTERFACE = "main"
 
-    abstract class Unique(HostBinding) < Multiplexer(HostBinding)
+    abstract class Unique(HostT, SerializerT) < Multiplexer(HostT, SerializerT)
       def multiplex(origin_interface : String) : String
         UNIQUE_INTERFACE
       end
@@ -24,16 +24,20 @@ module Bridge
       end
     end
 
-    class NoMultiplex(HostBinding) < Multiplexer::Unique(HostBinding)
+    macro new_no
+      ::Bridge::Multiplexer::NoMultiplex(HostInfo, Serializer).new
+    end
+
+    class NoMultiplex(HostT, SerializerT) < Multiplexer::Unique(HostT, SerializerT)
       def multiplex(origin_interface : String) : String
         origin_interface
       end
 
-      def multiplex(origin_interface : String, arg : InterfaceArgument(HostBinding)) : String
+      def multiplex(origin_interface : String, arg : InterfaceArgument(SerializerT)) : String
         origin_interface
       end
 
-      def select(multiplexed_interface : String, arg : InterfaceArgument(HostBinding)) : String
+      def select(multiplexed_interface : String, arg : InterfaceArgument(SerializerT)) : String
         multiplexed_interface
       end
 

@@ -5,16 +5,27 @@ module Bridge
   # Information of APIs, a hash from interface path to information table, where `path` is the method chain to the destination interface (path thought directories), `sig` is the signature of the calling.
   alias ApiInfo = Hash(String, NamedTuple(path: Array(Symbol), sig: NamedTuple(args: Hash(Symbol, String), ret: String)))
 
+  # The direction may be useful in injectors or multiplexers.
+  enum InterfaceDirection
+    # The interface locates in the client, and connects to the server.
+    ToServer,
+    # The interface locates in the server, opened from client.
+    FromClient
+  end
   # All parameters required to call an interface.
-  record InterfaceArgument(HostBinding), host_api : HostBinding, connection : IO do
-    delegate host, serializer, to: @host_api
+  record InterfaceArgument(SerializerT), serializer : SerializerT, connection : IO, logger : Logger, direction : InterfaceDirection do
     delegate serialize, serialize_respon, deserialize, deserialize_request, to: @serializer
+
+    def wrap(connection : IO = @connection, logger : Logger = @logger)
+      InterfaceArgument(SerializerT).new @serializer, connection, logger, @direction
+    end
   end
 
   # Once included, `Interfaces : ApiInfo` will be created where stores the api information, and several macro and methods will be defined to help build the Host including:
   # - `.interfaces` : returns the `Interface` constant. It's convinient when the Host is a generic.
   module Host
     macro included
+      {% unless @type.has_constant? :Interfaces %}
       # All api information of the Host
       Interfaces = {} of String => {path: Array(Symbol), sig: {args: Hash(Symbol, String), ret: String}}
 
@@ -22,6 +33,7 @@ module Bridge
       def self.interfaces
         Interfaces
       end
+      {% end %}
     end
 
     # macro serialize_from_IO(type, io)
@@ -33,12 +45,12 @@ module Bridge
     # end
 
     macro alias_api(path, to)
-      {%
-        to = to.stringify unless to.is_a? StringLiteral
-        path = path.stringify unless path.is_a? StringLiteral
-        interfaces = @type.constant(:Interfaces)
-        interfaces[to] = interfaces[path]
-      %}
+     {%
+       to = to.stringify unless to.is_a? StringLiteral
+       path = path.stringify unless path.is_a? StringLiteral
+       interfaces = @type.constant(:Interfaces)
+       interfaces[to] = interfaces[path]
+     %}
     end
 
     # macro alias_api(path, to)
@@ -62,8 +74,9 @@ module Bridge
         args = define.args
         args = [] of Symbol unless args
         path = name.stringify
-        methods = [("api_" + name.stringify).id.symbolize]
+        methods = [name.id.symbolize]
       %}
+      {% raise "Return type is necessary for Bridge API." unless define.return_type %}
       {% for arg in args %}
         {% raise "Argument #{arg} must indicate type, in Bridge API" unless arg.restriction %}
         {% raise "Argument #{arg} doesn't support default value in Bridge API" if arg.default_value %}
@@ -73,7 +86,7 @@ module Bridge
             {{arg.name.symbolize}} => {{arg.restriction.stringify}},
         {% end %}
       } of Symbol => String), ret: {{define.return_type.stringify}} } }
-      def api_{{name.id}}(arg : InterfaceArgument(HostBinding)) : Nil forall HostBinding
+      def {{name.id}}(arg : InterfaceArgument(SerializerT)) : Nil forall SerializerT
         {% begin %}
         {% if args && args.size > 0 %}
           request = arg.serializer.deserialize_request arg.connection, NamedTuple(
@@ -96,7 +109,6 @@ module Bridge
           arg.serializer.serialize_respon arg.connection, nil, err
           return
         end
-        p respon
         arg.serializer.serialize_respon arg.connection, respon
         {% end %}
       end
@@ -106,7 +118,7 @@ module Bridge
       {{define}}
       {% if define.name == "getter" || define.name == "property" %}
         {% for ele in define.args %}
-          def_api(def {{ele.var}}
+          def_api(def {{ele.var}} : {{ele.type}}
           end)
         {% end %}
       {% else %}
@@ -149,7 +161,7 @@ module Bridge
         {% if def_or_call.name == "getter" || def_or_call.name == "property" %}
           {{def_or_call}}
           {% for arg in def_or_call.args %}
-              append_all_interfaces_with_prefix {{@type}}, {{arg.type}}, {{arg.var}}, {{arg.var.stringify}}
+            append_all_interfaces_with_prefix {{@type}}, {{arg.type}}, {{arg.var}}, {{arg.var.stringify}}
           {% end %}
         {% else %}
           {% raise "Return type in Bridge Directory must be indicated explicitly:\ndirectory #{def_or_call}\nTry: directory #{def_or_call} : RETURN_TYPE" %}
@@ -169,9 +181,9 @@ module Bridge
     end
 
     module APIs
-      macro generate_api_proc(info)
-        ->(args : InterfaceArgument) {
-          args.host{% for method in info[:path] %}.{{method.id}}{% end %}(args)
+      macro generate_api_proc(hostT, info)
+        ->(host : {{hostT}}, args : InterfaceArgument) {
+          host{% for method in info[:path] %}.{{method.id}}{% end %}(args)
           nil
         }
       end
@@ -182,11 +194,11 @@ module Bridge
     {% hostT = hostT.resolve %}
     struct {{name}}
       include ::Bridge::Host::APIs
-      alias InterfaceArgument = Bridge::InterfaceArgument(self)
-      alias InterfaceProc = Proc(InterfaceArgument, Nil)
+      alias InterfaceArgument = Bridge::InterfaceArgument({{serializerT}})
+      alias InterfaceProc = Proc({{hostT}}, InterfaceArgument, Nil)
       InterfaceProcs = {
         {% for path, info in hostT.constant :Interfaces %}
-          {{path}} => generate_api_proc({{info}}),
+          {{path}} => generate_api_proc({{hostT}}, {{info}}),
         {% end %}
       } of String => InterfaceProc
 
@@ -204,8 +216,8 @@ module Bridge
         InterfaceProcs
       end
 
-      def make_interface_argument(connection : IO)
-        Bridge::InterfaceArgument.new self, connection
+      def make_interface_argument(connection : IO, log : Logger)
+        Bridge::InterfaceArgument.new @serializer, connection, log, InterfaceDirection::FromClient
       end
     end
   end

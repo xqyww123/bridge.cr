@@ -3,7 +3,7 @@ require "../error.cr"
 module Bridge
   abstract class Driver
     # A general purposed socket dirver.
-    abstract class SocketDriver(HostBinding, SockAddr) < Driver(HostBinding)
+    abstract class SocketDriver(HostBinding, SerializerT, SockAddr) < Driver(HostBinding, SerializerT)
       # Tolerance limit of the error in a connection. Exceeding the limit, the connection will terminate by force.
       property connection_retry_time_limit : Int32 = 32
       @servers : Hash(String, ServerInfo(HostBinding, SockAddr))

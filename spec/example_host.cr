@@ -1,5 +1,6 @@
 require "yaml"
 require "../src/bridge"
+require "./spec_helper.cr"
 
 class Dog
   include Bridge::Host
@@ -32,12 +33,13 @@ class Zoo
   # with a `getter cat : Cat`
   directory cat do
     api def fish!(fish : String) : String
+      raise "#{fish} is not a fish!" unless fish.starts_with? "fish "
       "#{fish} was delicious"
     end
     alias_api fish!, to: pet
   end
 
-  api def zoo
+  api def zoo : String
     "cats and dogs are in the zoo"
   end
 
@@ -54,7 +56,39 @@ class Zoo
 end
 
 ZooVar = Zoo.new Dog.new("alice"), Dog.new("bob"), Zoo::Cat.new
-Bridge.def_format ZooResponFormat, :hash, data_field: "ret", exception_field: "err"
-Bridge.def_serializer ZooSerializer, argument_as: :hash, response_format: ZooResponFormat
-Bridge.bind_host ZooAPIs, Zoo, ZooSerializer
-Bridge.bind_host DogAPIs, Dog, ZooSerializer
+
+BasePath = File.tempname "bridge.cr-zoo", ""
+LOGGER   = Logger.new STDERR
+Bridge.def_server ZooUNIX,
+  host: Zoo,
+  driver: unix_socket(
+    base_path: BasePath,
+    logger: LOGGER
+  ),
+  serializer: msgpack(
+    argument_as: hash,
+    response_format: hash(
+      data_field: ret,
+      exception_field: err,
+      exception_format: string
+    )
+  ),
+  multiplex: no
+Bridge.def_client ZooUNIXClient,
+  interfaces: Zoo::Interfaces,
+  client: unix_socket(
+    base_path: BasePath,
+    logger: LOGGER
+  ),
+  serializer: msgpack(
+    argument_as: hash,
+    response_format: hash(
+      data_field: ret,
+      exception_field: err,
+      exception_format: string
+    )
+  ),
+  multiplex: no,
+  injectors_everything: [
+    hexdump(STDERR, write: true, read: true),
+  ]

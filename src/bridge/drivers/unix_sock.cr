@@ -2,13 +2,13 @@ require "./socket.cr"
 
 module Bridge
   abstract class Driver
-    class UnixSocket(Host) < SocketDriver(Host, Socket::UNIXAddress)
+    class UnixSocket(Host, SerializerT) < SocketDriver(Host, SerializerT, Socket::UNIXAddress)
       Family = Socket::Family::UNIX
       getter base_path : String
       getter socket_type : Socket::Type
 
-      def initialize(host : Host, @base_path, multiplexer = Multiplexer::NoMultiplex(Host).new, @socket_type = Socket::Type::STREAM, logger = Logger.new STDERR)
-        super host, multiplexer, logger
+      def initialize(host_binding : Host, @base_path, multiplexer = Multiplexer::NoMultiplex(Host).new, @socket_type = Socket::Type::STREAM, logger = Logger.new STDERR)
+        super host_binding, multiplexer, logger
       end
 
       def absolutize(relative_path : String)
