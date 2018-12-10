@@ -138,6 +138,7 @@ module Bridge
                   @connections[conn1] = ConnectionInfo.new lis.multiplexed_interface, lis
                   begin
                     call_api(lis.multiplexed_interface, conn1)
+                  rescue
                   ensure
                     @connections.delete conn1
                     conn1.close

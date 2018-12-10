@@ -9,7 +9,7 @@ module Bridge
       end
 
       def inject(arg : InterfaceArgument(SerializerT)) : InterfaceArgument(SerializerT)
-        arg.wrap connection: IO::Hexdump.new arg.connection, output: (@dump_to || arg.logger.io), read: @read, write: @write
+        arg.wrap connection: IO::Hexdump.new arg.connection, output: (@dump_to || arg.logger.not_nil!.io), read: @read, write: @write
       end
     end
 

@@ -56,7 +56,7 @@ module Bridge
       @injectors_everything = [] of Injector::Everything(SerializerT)
       @injectors_multiplex = [] of Injector::Multiplex(SerializerT)
       @injectors_calling = [] of Injector::Calling(SerializerT)
-      @logger.progname = to_s.colorize(:red).bold.to_s
+      @logger.progname = to_s.colorize(:yellow).bold.to_s
     end
 
     abstract def bind
@@ -99,7 +99,7 @@ module Bridge
       @injectors_calling.each { |inj| carg = inj.inject carg }
       loop do
         begin
-          log_info "multiplexing #{host}:#{multiplexed_interface}."
+          log_debug "multiplexing #{host}:#{multiplexed_interface}."
           interface_path = @multiplexer.select multiplexed_interface, marg
           proc = HostBinding.interface_procs[interface_path]?
           raise log_error InterfaceNotFound.new host, self, interface_path unless proc

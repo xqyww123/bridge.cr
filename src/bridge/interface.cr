@@ -13,7 +13,7 @@ module Bridge
     FromClient
   end
   # All parameters required to call an interface.
-  record InterfaceArgument(SerializerT), serializer : SerializerT, connection : IO, logger : Logger, direction : InterfaceDirection do
+  record InterfaceArgument(SerializerT), serializer : SerializerT, connection : IO, logger : Logger?, direction : InterfaceDirection do
     include Helpers::Mixin
 
     delegate serialize, serialize_respon, deserialize, deserialize_request, to: @serializer

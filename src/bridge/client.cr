@@ -9,14 +9,14 @@ module Bridge
     getter injectors_everything
     getter injectors_multiplex
     getter injectors_calling
-    getter logger : Logger
+    getter logger : Logger?
     getter timeout : Time::Span?
 
-    def initialize(@timeout, @serializer, @multiplexer, @logger)
+    def initialize(@timeout, @serializer, @multiplexer, @logger = nil)
       @injectors_everything = [] of Injector::Everything(SerializerT)
       @injectors_multiplex = [] of Injector::Multiplex(SerializerT)
       @injectors_calling = [] of Injector::Calling(SerializerT)
-      @logger.progname = to_s.colorize(:light_blue).bold.to_s
+      @logger.try &.progname = to_s.colorize(:green).bold.to_s
     end
 
     abstract def rpc(interface_path : String, &users_process : IO -> _)

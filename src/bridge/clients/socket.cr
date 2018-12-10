@@ -18,10 +18,11 @@ module Bridge
         @sockets[multiplexed_interface] ||= begin
           sock, addr = generate_socket multiplexed_interface
           begin
+            log_info "connecting to #{addr} at ##{sock.fd} for multiplexed #{HostT}:#{multiplexed_interface}"
             sock.connect addr, timeout: @timeout
           rescue err
             sock.close
-            raise IterfaceConnectFail.new addr, self, multiplexed_interface, err
+            raise log_error IterfaceConnectFail.new addr, self, multiplexed_interface, err
           end
           sock.read_timeout = @timeout.not_nil! if @timeout
           sock.write_timeout = @timeout.not_nil! if @timeout
@@ -39,12 +40,19 @@ module Bridge
             break call_server interface_path, sock, &block
           rescue err
             case err
+            when IO::Timeout
+              retry = UInt32::MAX
             when Errno
               retry = UInt32::MAX if [Errno::ENOENT, Errno::ECONNREFUSED, Errno::ENOENT, Errno::E2BIG, Errno::EACCES, Errno::EAFNOSUPPORT, Errno::EBADF].includes? err.errno
             end
-            raise IterfaceConnectFail.new addr, self, interface_path, err if retry >= retry_time_limit
+            sock = @sockets.delete multiplexed_interface
+            sock.first.close if sock
+            if retry >= retry_time_limit
+              raise log_error IterfaceConnectFail.new addr, self, interface_path, err
+            else
+              log_warn "fail to connect #{addr} for #{HostT}:#{interface_path} for #{retry + 1} times: #{err}"
+            end
             retry += 1
-            @sockets.delete interface_path
           end
         end
       end

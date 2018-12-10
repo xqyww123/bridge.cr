@@ -43,7 +43,7 @@ class Zoo
     "cats and dogs are in the zoo"
   end
 
-  api def lazy(lazy_time : Int32) : String
+  api def lazy(lazy_time : Float32) : String
     sleep lazy_time
     "Yes I'm lazy."
   end
