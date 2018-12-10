@@ -33,26 +33,49 @@ module Bridge
         end
       end
 
-      def initialize(host : HostBinding, multiplexer = nil, logger = Logger.new STDERR)
+      record ConnectionInfo(HostBinding, SockAddr), interface_path : String, server_info : ServerInfo(HostBinding, SockAddr)
+
+      getter timeout : Time::Span?
+      @sock_setting : Proc(Socket, Nil)
+
+      # number of connected
+      def connection_number
+        @connections.size
+      end
+
+      def initialize(host : HostBinding, multiplexer, @timeout, @sock_setting, logger)
         super host, multiplexer, logger
+        @connections = {} of Socket => ConnectionInfo(HostBinding, SockAddr)
         @servers = Hash(String, ServerInfo(HostBinding, SockAddr)).new nil, @multiplexer.multiplexed_size
         HostBinding.interfaces.keys.each do |origin_interface|
           multiplexed_interface = @multiplexer.multiplex origin_interface
-          server = ServerInfo(HostBinding, SockAddr).new multiplexed_interface, generate_socket_address(multiplexed_interface)
-          @servers[origin_interface] = server
+          @servers[multiplexed_interface] ||=
+            ServerInfo(HostBinding, SockAddr).new multiplexed_interface, generate_socket_address(multiplexed_interface)
         end
+      end
+
+      NO_SPECIAL_SETTING = ->(a : ::Socket) {}
+
+      private def config_socket(sock : ::Socket)
+        @sock_setting.call sock
+      end
+
+      private def config_connection(sock : ::Socket)
+        sock.read_timeout = @timeout.not_nil! if @timeout
+        sock.write_timeout = @timeout.not_nil! if @timeout
       end
 
       def bind
         errs = [] of InterfaceBindFail(typeof(host), typeof(self))
         @servers.each_value do |server|
           next if server.binding?
-          log info, "binding #{host}:#{server.multiplexed_interface} on #{server.addr}"
+          log_info "binding #{host}:#{server.multiplexed_interface} on #{server.addr}"
           sock = generate_socket server.multiplexed_interface
+          config_socket sock
           fail = false
           sock.bind(server.addr) do |errno|
             err = InterfaceBindFail.new host, self, server.multiplexed_interface, errno
-            log error, err.message
+            log_error err.message
             errs << err
             fail = true
           end
@@ -92,9 +115,10 @@ module Bridge
         errs = [] of InterfaceListenFail(typeof(host), typeof(self))
         @servers.each_value do |lis|
           next unless sock = lis.sock
+          log_info "listening #{host}:#{lis.multiplexed_interface}"
           sock.listen do |errno|
             err = InterfaceListenFail.new host, self, lis.multiplexed_interface, errno
-            log error, err.message
+            log_error err.message
             errs << err
             next
           end
@@ -104,14 +128,23 @@ module Bridge
           spawn do
             begin
               loop do
-                conn1 = sock.not_nil!.accept?
-                break unless conn1
-                log info, "new connection on mutiplexed #{host}:#{lis.multiplexed_interface}"
+                conn = sock.not_nil!.accept?
+                break if conn.nil?
+                config_connection conn
+                log_info "new connection ##{conn.fd} on mutiplexed #{host}:#{lis.multiplexed_interface}"
                 spawn do
-                  call_api(lis.multiplexed_interface, conn1.not_nil!)
+                  conn1 = conn.not_nil!
+                  # BUG ! should be original_interface
+                  @connections[conn1] = ConnectionInfo.new lis.multiplexed_interface, lis
+                  begin
+                    call_api(lis.multiplexed_interface, conn1)
+                  ensure
+                    @connections.delete conn1
+                    conn1.close
+                  end
                 end
               rescue err
-                log warn, Errno.new("Error occured in Server #{lis.multiplexed_interface}, trying to restart the server").message
+                log_warn "Error occured in Server #{lis.multiplexed_interface}, trying to restart the server : #{err}"
                 sock.not_nil!.close if sock = lis.sock
                 lis.sock = nil
                 listen
@@ -122,16 +155,29 @@ module Bridge
       end
 
       def stop_listen
-        @all_servers.each do |server|
-          server.sock.close
+        @servers.each_value do |server|
+          log_info "closing #{host}:#{server.multiplexed_interface}"
+          server.sock.try &.close
           server.sock = nil
         end
       end
 
       def close
         stop_listen
-        @all_servers.clear
         @servers.clear
+      end
+
+      private def kill(socks : Iterator({Socket, ConnectionInfo(HostBinding, SockAddr)}), timeout = nil)
+        raise "non-nil timeout to kill still not supported" if timeout
+        socks.each &.first.close_read
+      end
+
+      def kill(interface_path = nil)
+        kill @connections.each.select(&.last.interface_path.== interface_path).to_a.each
+      end
+
+      def kill_all(timeout = nil)
+        kill @connections.to_a.each
       end
     end
   end

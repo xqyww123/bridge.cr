@@ -14,14 +14,31 @@ describe Driver do
       ZooServer.listen
     end
     it "rpc" do
+      ZooClient.zoo.should eq "cats and dogs are in the zoo"
       3.times {
-        ZooClient.zoo.should eq "cats and dogs are in the zoo"
+        ZooClient.pet.cat("fish with gold").should eq "fish with gold was delicious"
       }
-      ZooClient.pet.cat("fish with gold").should eq "fish with gold was delicious"
       expect_raises(RecvException) do
         ZooClient.pet.cat "gold fish"
       end.cause.not_nil!.message.should eq "gold fish is not a fish!"
     end
+    it "has timeout" do
+      ZooClient.pet.cat("fish with gold").should eq "fish with gold was delicious"
+      sleep 0.2
+      ZooServer.connection_number.should eq 0
+      ZooClient.pet.cat("fish with gold").should eq "fish with gold was delicious"
+    end
+    it "can be killed" do
+      ZooClient.pet.cat("fish with gold").should eq "fish with gold was delicious"
+      ZooServer.kill_all
+      Fiber.yield
+      ZooServer.connection_number.should eq 0
+    end
+    # bug : if close before others, rpc to other servers seems be forwarded to this closed server.
+    # I believe it's some fd reusing bug in crystal.
+    # it "close" do
+    #   ZooServer.close
+    # end
   end
 end
 describe Client do

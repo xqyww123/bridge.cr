@@ -107,3 +107,5 @@ module Bridge
   #  end
   # end
 end
+
+require "./mutiplexers/*"

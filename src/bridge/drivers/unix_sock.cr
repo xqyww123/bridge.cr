@@ -7,8 +7,8 @@ module Bridge
       getter base_path : String
       getter socket_type : Socket::Type
 
-      def initialize(host_binding : Host, @base_path, multiplexer = Multiplexer::NoMultiplex(Host).new, @socket_type = Socket::Type::STREAM, logger = Logger.new STDERR)
-        super host_binding, multiplexer, logger
+      def initialize(host_binding : Host, @base_path, multiplexer = Multiplexer::NoMultiplex(Host).new, timeout = nil, @socket_type = Socket::Type::STREAM, logger = Logger.new(STDERR), sock_setting = NO_SPECIAL_SETTING)
+        super host_binding, multiplexer, timeout, sock_setting, logger
       end
 
       def absolutize(relative_path : String)

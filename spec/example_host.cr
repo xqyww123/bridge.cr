@@ -43,6 +43,11 @@ class Zoo
     "cats and dogs are in the zoo"
   end
 
+  api def lazy(lazy_time : Int32) : String
+    sleep lazy_time
+    "Yes I'm lazy."
+  end
+
   alias_api "dog/pet", to: "pet_dog"
   alias_api "cat/pet", to: "pet/cat"
 
@@ -58,12 +63,13 @@ end
 ZooVar = Zoo.new Dog.new("alice"), Dog.new("bob"), Zoo::Cat.new
 
 BasePath = File.tempname "bridge.cr-zoo", ""
-LOGGER   = Logger.new STDERR
+LOGGER   = Logger.new STDERR, level: Logger::Severity::DEBUG
 Bridge.def_server ZooUNIX,
   host: Zoo,
   driver: unix_socket(
     base_path: BasePath,
-    logger: LOGGER
+    logger: LOGGER.dup,
+    timeout: Time::Span.new(seconds: 0, nanoseconds: 100_000_000)
   ),
   serializer: msgpack(
     argument_as: hash,
@@ -78,7 +84,7 @@ Bridge.def_client ZooUNIXClient,
   interfaces: Zoo::Interfaces,
   client: unix_socket(
     base_path: BasePath,
-    logger: LOGGER
+    logger: LOGGER.dup
   ),
   serializer: msgpack(
     argument_as: hash,

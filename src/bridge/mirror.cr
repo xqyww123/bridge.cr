@@ -94,7 +94,7 @@ module Bridge
               {{name.id}} : {{type.id}},
           {% end %}
         )
-          ret, err = @client.rpc_call {{interface_path}} do |io|
+          ret, err = @client.rpc {{interface_path}} do |io|
             @client.serializer.serialize_request(io,
               {% if args.empty? %}
                 nil

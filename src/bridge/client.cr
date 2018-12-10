@@ -2,21 +2,24 @@ require "logger"
 
 module Bridge
   abstract class Client(HostT, SerializerT)
+    include Helpers::Mixin
+
     getter serializer : SerializerT
     getter multiplexer : Multiplexer(HostT, SerializerT)
     getter injectors_everything
     getter injectors_multiplex
     getter injectors_calling
     getter logger : Logger
+    getter timeout : Time::Span?
 
-    def initialize(@serializer, @multiplexer, @logger)
+    def initialize(@timeout, @serializer, @multiplexer, @logger)
       @injectors_everything = [] of Injector::Everything(SerializerT)
       @injectors_multiplex = [] of Injector::Multiplex(SerializerT)
       @injectors_calling = [] of Injector::Calling(SerializerT)
       @logger.progname = to_s.colorize(:light_blue).bold.to_s
     end
 
-    abstract def rpc_call(interface_path : String, &users_process : IO -> _)
+    abstract def rpc(interface_path : String, &users_process : IO -> _)
 
     protected def call_server(interface_path : String, io : IO, &users_process : IO -> _)
       arg = InterfaceArgument(SerializerT).new @serializer, io, @logger, InterfaceDirection::ToServer

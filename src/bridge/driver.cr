@@ -42,6 +42,8 @@ module Bridge
   end
 
   abstract class Driver(HostBinding, SerializerT) < DriverBase
+    include Helpers::Mixin
+
     getter host_binding : HostBinding
     delegate host, serializer, to: @host_binding
     getter logger : Logger
@@ -57,18 +59,6 @@ module Bridge
       @logger.progname = to_s.colorize(:red).bold.to_s
     end
 
-    macro log(type, info)
-      @logger.{{type.id}}({{info}})
-    end
-
-    macro log_excep(type, excep)
-      begin
-        %excep = {{excep}}
-        log {{type.id}}, %excep.message
-        %excep
-      end
-    end
-
     abstract def bind
     abstract def binding?
     abstract def listen
@@ -77,6 +67,13 @@ module Bridge
     abstract def stop_listen
     # which will de-bind and release everything
     abstract def close
+
+    # shutdown all connection related to `interface_path`.
+    # All unreceived data lost, sends `InterfaceClosed` to the connection reading incompleted, waits `timeout` for the reading completed or executing. If timeout, kill the execution forcelly.
+    # If `timeout` is 0, kill the execution directly.
+    # If `timeout` is nil, wait the execution for ever.
+    abstract def kill(interface_path : String, timeout : Time::Span? | Int = nil) : Channel(Nil)
+    abstract def kill_all(timeout : Time::Span? | Int = nil) : Channel(Nil)
 
     macro tolerate(operation, *fails)
       def {{operation}}?
@@ -89,28 +86,34 @@ module Bridge
       end
     end
 
+    tolerate bind, InterfaceBindFail(typeof(host), typeof(self))
+    tolerate listen, InterfaceListenFail(typeof(host), typeof(self))
+
     protected def call_api(multiplexed_interface : String, connection : IO)
       arg = @host_binding.make_interface_argument connection,
-        Helpers.log_for @logger, ""
+        Helpers.log_for @logger, "#{host}:#{multiplexed_interface}"
       @injectors_everything.each { |inj| arg = inj.inject arg }
       marg = arg
       @injectors_multiplex.each { |inj| marg = inj.inject marg }
-      interface_path = @multiplexer.select multiplexed_interface, marg
       carg = arg
       @injectors_calling.each { |inj| carg = inj.inject carg }
-      proc = HostBinding.interface_procs[interface_path]?
-      raise log_excep error, InterfaceNotFound.new host, self, interface_path unless proc
       loop do
         begin
+          log_info "multiplexing #{host}:#{multiplexed_interface}."
+          interface_path = @multiplexer.select multiplexed_interface, marg
+          proc = HostBinding.interface_procs[interface_path]?
+          raise log_error InterfaceNotFound.new host, self, interface_path unless proc
           proc.call @host_binding.host, carg
+        rescue err : IO::Timeout
+          log_info "Timeout, long connection ##{connection.fd} terminated #{host}."
+          break
+        rescue err : InterfaceNotFound
+          raise err
         rescue err
-          raise log_excep error, InterfaceExcuteFail.new host, self, interface_path, err
+          raise log_error InterfaceExcuteFail.new host, self, (interface_path || "<mutiplex fail>"), err
         end
       end
     end
-
-    tolerate bind, InterfaceBindFail(typeof(host), typeof(self))
-    tolerate listen, InterfaceListenFail(typeof(host), typeof(self))
 
     def self.driver_name
       {{ @type.name.gsub(/^Bridge::Driver::([a-zA-Z0-9]*).*$/, "\\1").stringify }}

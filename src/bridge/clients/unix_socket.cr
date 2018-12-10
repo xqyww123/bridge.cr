@@ -3,8 +3,8 @@ module Bridge
     class UnixSocket(HostT, SerializerT) < SocketClient(HostT, SerializerT, Socket::UNIXAddress)
       getter base_path : String
 
-      def initialize(@base_path, serializer, multiplexer, @retry_time_limit = 3_u32, logger = Logger.new STDERR)
-        super serializer, multiplexer, logger
+      def initialize(@base_path, serializer, multiplexer, @retry_time_limit = 3_u32, timeout = nil, sock_setting = NO_SPECIAL_SETTING, logger = Logger.new STDERR)
+        super sock_setting, timeout, serializer, multiplexer, logger
       end
 
       # :nodoc:

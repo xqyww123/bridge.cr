@@ -14,6 +14,8 @@ module Bridge
   end
   # All parameters required to call an interface.
   record InterfaceArgument(SerializerT), serializer : SerializerT, connection : IO, logger : Logger, direction : InterfaceDirection do
+    include Helpers::Mixin
+
     delegate serialize, serialize_respon, deserialize, deserialize_request, to: @serializer
 
     def wrap(connection : IO = @connection, logger : Logger = @logger)
@@ -94,6 +96,7 @@ module Bridge
             {{arg.name.stringify}}: {{arg.restriction}},
           {% end %}
           )
+          arg.log_debug "new execution on #{self}:{{name.id}}."
           respon = begin
           {{name.id}}(
           {% for arg in args %}
@@ -103,6 +106,7 @@ module Bridge
         {% else %}
           arg.serializer.deserialize_request arg.connection, Nil
           respon = begin
+          arg.log_debug "new execution on #{self}:{{name.id}}."
           {{name.id}}
         {% end %}
         rescue err

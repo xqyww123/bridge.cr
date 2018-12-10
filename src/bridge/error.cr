@@ -50,6 +50,7 @@ module Bridge
   interface_fail IterfaceConnectFail, "Fail to connect interface #{host}##{interface_path}, because: #{cause.try &.message}"
   # Triggered when client receive an exception.
   interface_fail RecvException, "An exception received from #{host}##{interface_path}"
+  interface_fail InterfaceClosed, "The interface #{host}#{interface_path} has been closed"
 
   class SomeFail(Fail, Driver) < Exception
     getter fails : Array(Fail)
