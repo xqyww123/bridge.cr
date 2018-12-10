@@ -21,15 +21,21 @@ module Bridge
 
     abstract def rpc(interface_path : String, &users_process : IO -> _)
 
-    protected def call_server(interface_path : String, io : IO, &users_process : IO -> _)
-      arg = InterfaceArgument(SerializerT).new @serializer, io, @logger, InterfaceDirection::ToServer
+    record ConnectionInfo(SerializerT), multiplexed_interface : String, multiplex_argument : InterfaceArgument(SerializerT), calling_argument : InterfaceArgument(SerializerT), connection : IO
+
+    protected def config_new_connection(multiplexed_interface : String, connection : IO) : ConnectionInfo(SerializerT)
+      arg = InterfaceArgument(SerializerT).new @serializer, connection, @logger, InterfaceDirection::ToServer
       @injectors_everything.each { |inj| arg = inj.inject arg }
       marg = arg
       @injectors_multiplex.each { |inj| marg = inj.inject marg }
       carg = arg
       @injectors_calling.each { |inj| carg = inj.inject carg }
-      @multiplexer.multiplex interface_path, marg
-      yield carg.connection
+      ConnectionInfo.new multiplexed_interface, marg, carg, connection
+    end
+
+    protected def call_server(interface_path : String, connection : ConnectionInfo, &users_process : IO -> _)
+      @multiplexer.multiplex interface_path, connection.multiplex_argument
+      yield connection.calling_argument.connection
     end
 
     def self.client_name

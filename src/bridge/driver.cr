@@ -99,7 +99,7 @@ module Bridge
       @injectors_calling.each { |inj| carg = inj.inject carg }
       loop do
         begin
-          log_debug "multiplexing #{host}:#{multiplexed_interface}."
+          log_debug "waiting on #{host}:#{multiplexed_interface}."
           interface_path = @multiplexer.select multiplexed_interface, marg
           proc = HostBinding.interface_procs[interface_path]?
           raise log_error InterfaceNotFound.new host, self, interface_path unless proc
