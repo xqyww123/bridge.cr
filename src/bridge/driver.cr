@@ -12,7 +12,7 @@ module Bridge
         alias Host = {{host}}
         ::Bridge.bind_host Binding, {{host}}, Serializer
         alias HostInfo = Binding
-        alias Driver = ::Bridge::Driver::{{driver.id.camelcase}}(Binding, Serializer)
+        alias Driver = ::Bridge::Driver::{{driver.name.camelcase}}(Binding, Serializer)
         def self.new(host : {{host}},
                      {% if multiplex != :dynamic %}
                        multiplexer = ::Bridge::Multiplexer.new_{{multiplex}},

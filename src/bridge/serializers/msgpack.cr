@@ -1,7 +1,7 @@
 module Bridge
   abstract class Serializer
-    macro def_msgpack(argument_as, response_format)
-      ::Bridge::Serializer::ResponseFormat.def_{{response_format}} do
+    macro def_msgpack(argument_as = :array, response_format = "hash")
+      ::Bridge::Serializer::ResponseFormat.def_{{response_format.id}} do
         alias Serializer = ::Bridge::Serializer::Msgpack({{Msgpack::ARGUMENT_AS[argument_as.id.symbolize.underscore]}}, ResponseFormat)
         {{yield}}
       end
@@ -20,6 +20,10 @@ module Bridge
         ArgumentFormat.deserialize_request io, argument_types
       end
 
+      def deserialize_request(io : IO)
+        ArgumentFormat.deserialize_request io
+      end
+
       def deserialize_respon(io : IO, response_format_type)
         resp = response_format_type.from_msgpack io
         ResponseFormat.unpack resp
@@ -31,8 +35,16 @@ module Bridge
           argument_types.replace_values args
         end
 
+        def self.deserialize_request(io : IO)
+          Array(String).from_msgpack io
+        end
+
         def self.serialize_request(io : IO, request : NamedTuple) : Nil
           request.values.to_msgpack io
+        end
+
+        def self.serialize_request(io : IO)
+          ([] of String).to_msgpack io
         end
       end
 
@@ -41,8 +53,16 @@ module Bridge
           argument_types.from_msgpack io
         end
 
+        def self.deserialize_request(io : IO)
+          Hash(String, String).from_msgpack io
+        end
+
         def self.serialize_request(io : IO, request : NamedTuple) : Nil
           request.to_msgpack io
+        end
+
+        def self.serialize_request(io : IO)
+          ({} of String => String).to_msgpack io
         end
       end
 
@@ -55,7 +75,7 @@ module Bridge
       end
 
       def serialize_request(io : IO, request : Nil) : Nil
-        nil.to_msgpack io
+        ArgumentFormat.serialize_request io
       end
 
       def serialize_request(io : IO, request : NamedTuple) : Nil

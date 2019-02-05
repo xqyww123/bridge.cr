@@ -40,7 +40,7 @@ Bridge.def_server ZooUNIX,
     logger: LOGGER
   ),
   serializer: msgpack,
-  multiplex: no
+  multiplex: send_path
 # The default format of msgpack serializer is `{ret: <ret val obj>, err: "exception's message or null"}`
 # The format could be specified in limited freedom. And the `bridge` framework is an easy one with good performance, at price of limited flexibility, especially in format of serialization.
 

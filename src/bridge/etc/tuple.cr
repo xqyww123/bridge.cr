@@ -5,7 +5,7 @@ def NamedTuple.types_as_type
 end
 
 def Nil.types_as_type
-  Nil
+  Tuple(Nil)
 end
 
 def NamedTuple.replace_values(values)
@@ -13,8 +13,8 @@ def NamedTuple.replace_values(values)
   {% ind = 0 %}
     {
       {% for k, v in T %}
-        {{k}} => values[{{ind}}],
-        {% ind += 1 %}
+        :{{k}} => values[{{ind}}],
+        {% ind = ind + 1 %}
       {% end %}
     }
   {% end %}

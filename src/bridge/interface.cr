@@ -77,6 +77,11 @@ module Bridge
         args = [] of Symbol unless args
         path = name.stringify
         methods = [name.id.symbolize]
+        if rec = define.receiver
+          raise "can only define api of receiver `self`" unless rec.stringify == "self"
+          path = @type.stringify.gsub(/::/, "/") + File::SEPARATOR + path
+          methods.unshift @type.symbolize
+        end
       %}
       {% raise "Return type is necessary for Bridge API." unless define.return_type %}
       {% for arg in args %}
@@ -88,7 +93,7 @@ module Bridge
             {{arg.name.symbolize}} => {{arg.restriction.stringify}},
         {% end %}
       } of Symbol => String), ret: {{define.return_type.stringify}} } }
-      def {{name.id}}(arg : InterfaceArgument(SerializerT)) : Nil forall SerializerT
+      def {{ "#{rec}.".id if rec }}{{name.id}}(arg : ::Bridge::InterfaceArgument(SerializerT)) : Nil forall SerializerT
         {% begin %}
         {% if args && args.size > 0 %}
           request = arg.serializer.deserialize_request arg.connection, NamedTuple(
@@ -104,7 +109,7 @@ module Bridge
           {% end %}
           )
         {% else %}
-          arg.serializer.deserialize_request arg.connection, Nil
+          arg.serializer.deserialize_request arg.connection
           respon = begin
           arg.log_debug "new execution on #{self}:{{name.id}}."
           {{name.id}}
@@ -125,6 +130,9 @@ module Bridge
           def_api(def {{ele.var}} : {{ele.type}}
           end)
         {% end %}
+      {% elsif define.name == "initialize" %}
+      def_api(def self.new({% for arg in define.args %}{{arg.name}} : {{arg.restriction}}, {% end %}) : {{define.return_type}}
+      end)
       {% else %}
         def_api({{define}})
       {% end %}
@@ -136,19 +144,21 @@ module Bridge
         raise "#{from}::Interfaces not be resolved. Make sure it's a Bridge::Host." unless from.constant :Interfaces
       %}
       {% for relative_path, info in from.constant :Interfaces %}
+        {% unless relative_path.chars[0] == relative_path.capitalize.chars[0] %}
         {%
           path = prefix + File::SEPARATOR + relative_path
           to = to.resolve if to.is_a? Path
           my_methods = [method.id.symbolize] + info[:path]
         %}
         add_interface {{path}}, {path: {{my_methods}}, sig: {{info[:sig]}} }
+        {% end %}
       {% end %}
     end
 
     # macro directory(dirname, &block)
     # end
 
-    macro directory(def_or_call)
+    macro directory(def_or_call, &block)
       {% if def_or_call.is_a? Def %}
         {%
           raise "Return type of a Def in Bridge Directory must be indicated explicitly:\ndirectory #{def_or_call}" unless def_or_call.return_type
@@ -161,7 +171,7 @@ module Bridge
         append_all_interfaces_with_prefix {{@type}}, {{def_or_call.type}}, {{def_or_call.var}}, {{def_or_call.var.stringify}}
       {% elsif def_or_call.is_a? Assign %}
         {% raise "Type of Bridge Directory must be indicated explicily, try `directory #{def_or_call.target} : Type = #{def_or_call.value}`\ndirectory #{def_or_call}" %}
-      {% elsif def_or_call.is_a? Call && def_or_call.block %}
+      {% elsif def_or_call.is_a? Call && !def_or_call.block && !block %}
         {% if def_or_call.name == "getter" || def_or_call.name == "property" %}
           {{def_or_call}}
           {% for arg in def_or_call.args %}
@@ -181,13 +191,14 @@ module Bridge
       {% end %}
     end
 
-    macro api_info
-    end
-
     module APIs
       macro generate_api_proc(hostT, info)
         ->(host : {{hostT}}, args : InterfaceArgument) {
+          {% if info[:path][0].chars[0] == info[:path][0].capitalize.chars[0] %}
+          {% for method, ind in info[:path] %}{{ ".".id if ind > 0 }}{{method.id}}{% end %}(args)
+          {% else %}
           host{% for method in info[:path] %}.{{method.id}}{% end %}(args)
+          {% end %}
           nil
         }
       end
@@ -221,7 +232,7 @@ module Bridge
       end
 
       def make_interface_argument(connection : IO, log : Logger)
-        Bridge::InterfaceArgument.new @serializer, connection, log, InterfaceDirection::FromClient
+        Bridge::InterfaceArgument.new @serializer, connection, log, Bridge::InterfaceDirection::FromClient
       end
     end
   end

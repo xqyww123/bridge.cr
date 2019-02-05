@@ -22,6 +22,9 @@ describe Driver do
         ZooClient.pet.cat "gold fish"
       end.cause.not_nil!.message.should eq "gold fish is not a fish!"
     end
+    it "rpc static method" do
+      ZooUNIXClient::Zoo.static(ZooClient, 2).should eq 5
+    end
     it "has timeout" do
       ZooClient.pet.cat("fish with gold").should eq "fish with gold was delicious"
       sleep 0.2

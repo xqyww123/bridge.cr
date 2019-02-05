@@ -51,6 +51,9 @@ class Zoo
   alias_api "dog/pet", to: "pet_dog"
   alias_api "cat/pet", to: "pet/cat"
 
+  api def self.static(x : Int32) : Int32
+    3 + x
+  end
   # Every `Bridge::Host` has two constant : Interface & InterfaceProcs
   # Interfaces is a Hash from interface name (the path of the interface, as a String) to the path of the calling chain.
   # Every api will generate a wrapper method called `api_<method name>`, which parse argument from IO and then serialize the result of the method into IO, with only one argument of IO type and Nil return.

@@ -12,13 +12,15 @@ module Bridge
     abstract def deserialize(io : IO, val)
     abstract def serialize(io : IO, val_type) : Nil
     abstract def deserialize_request(io : IO, request_Type : T) forall T
+    # case of no argument
+    abstract def deserialize_request(io : IO)
     abstract def deserialize_respon(io : IO, respon_type) : Tuple
     abstract def serialize_request(io : IO, request : NamedTuple?) : Nil
     abstract def serialize_respon(io : IO, response, exception : Exception? = nil) : Nil
 
     module ResponseFormat
-      macro def_hash(data_field, exception_field, exception_format)
-      ::Bridge::Serializer::ExceptionFormat.def_{{exception_format}} do
+      macro def_hash(data_field = "ret", exception_field = "err", exception_format = "string")
+        ::Bridge::Serializer::ExceptionFormat.def_{{exception_format.id}} do
         module ResponseFormat
           def self.pack(respon, exception : Exception?)
             { {{data_field.id.symbolize}} => respon, {{exception_field.id.symbolize}} => ExceptionFormat.pack(exception) }

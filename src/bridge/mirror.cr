@@ -82,20 +82,27 @@ module Bridge
            subs = subs.resolve
          end
          pathes = interface_path.split "/"
-         path = pathes[ind] %}
+         path = pathes[ind]
+         static = ind > 0 && pathes[ind - 1].chars[0] == pathes[ind - 1].capitalize.chars[0] %}
       {% if ind == pathes.size - 1 %}
         {% sig = info[:sig]
            args = sig[:args]
            if args.is_a? Expressions
              args = args.expressions.first
            end %}
-        def {{path.id}}(
+        def {{"self.".id if static}}{{path.id.underscore}}(
+          {% if static %}
+            client_or_host : Client | HostInfo,
+          {% end %}
           {% for name, type in args %}
               {{name.id}} : {{type.id}},
           {% end %}
         )
-          ret, err = @client.rpc {{interface_path}} do |io|
-            @client.serializer.serialize_request(io,
+          {% if static %}
+            client = client_or_host.is_a?(HostInfo) ? client_or_host.client : client_or_host
+          {% end %}
+          ret, err = client.rpc {{interface_path}} do |io|
+            client.serializer.serialize_request(io,
               {% if args.empty? %}
                 nil
               {% else %}
@@ -106,9 +113,9 @@ module Bridge
                 }
               {% end %}
             )
-            @client.serializer.deserialize_respon(io, ResponseFormat.type({{sig[:ret].id}}))
+            client.serializer.deserialize_respon(io, ResponseFormat.type({{sig[:ret].id}}))
           end
-          raise RecvException.new self, @client, {{interface_path}}, err if err
+          raise RecvException.new self, client, {{interface_path}}, err if err
           ret.as {{sig[:ret].id}}
         end
       {% else %}
@@ -122,9 +129,11 @@ module Bridge
           {% end %}
           def_interface({{interface_path}}, {{info}}, {{ind + 1}})
         end
-        def {{path.id}}
+        {% unless path.chars[0] == path.capitalize.chars[0] %}
+        def {{"self.".id if static}}{{path.id.underscore}}
           {{path.id.camelcase}}.new @client
         end
+        {% end %}
       {% end %}
     end
   end
