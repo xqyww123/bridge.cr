@@ -79,7 +79,7 @@ module Bridge
         methods = [name.id.symbolize]
         if rec = define.receiver
           raise "can only define api of receiver `self`" unless rec.stringify == "self"
-          path = @type.stringify.gsub(/::/, "/") + File::SEPARATOR + path
+          path = @type.stringify.gsub(/::/, "/") + "/" + path
           methods.unshift @type.symbolize
         end
       %}
@@ -146,7 +146,7 @@ module Bridge
       {% for relative_path, info in from.constant :Interfaces %}
         {% unless relative_path.chars[0] == relative_path.capitalize.chars[0] %}
         {%
-          path = prefix + File::SEPARATOR + relative_path
+          path = prefix + "/" + relative_path
           to = to.resolve if to.is_a? Path
           my_methods = [method.id.symbolize] + info[:path]
         %}

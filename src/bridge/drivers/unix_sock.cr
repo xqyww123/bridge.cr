@@ -30,6 +30,10 @@ module Bridge
           {origin_interfaces, origin_interfaces}
         end
       end
+
+      macro config(base_path, **options)
+        {_name_: "UnixSocket", base_path: {{base_path}} }
+      end
     end
   end
 end

@@ -1,8 +1,13 @@
 module Bridge
   abstract class Serializer
-    macro def_msgpack(argument_as = :array, response_format = "hash")
+    macro def_msgpack(argument_as = :array, response_format = :hash)
       ::Bridge::Serializer::ResponseFormat.def_{{response_format.id}} do
         alias Serializer = ::Bridge::Serializer::Msgpack({{Msgpack::ARGUMENT_AS[argument_as.id.symbolize.underscore]}}, ResponseFormat)
+        module Config
+          SERIALIZER = {_name_: "msgpack",
+            argument_as: {{argument_as.stringify}},
+            response_format: RESPONSE }
+        end
         {{yield}}
       end
     end
@@ -25,8 +30,7 @@ module Bridge
       end
 
       def deserialize_respon(io : IO, response_format_type)
-        resp = response_format_type.from_msgpack io
-        ResponseFormat.unpack resp
+        ResponseFormat.unpack self, io, response_format_type
       end
 
       module ArgumentAsArray
@@ -70,8 +74,7 @@ module Bridge
                      hash:  ::Bridge::Serializer::Msgpack::ArgumentAsHash}
 
       def serialize_respon(io : IO, respon, exception = nil)
-        pack = ResponseFormat.pack respon, exception
-        pack.to_msgpack io
+        ResponseFormat.pack self, io, respon, exception
       end
 
       def serialize_request(io : IO, request : Nil) : Nil

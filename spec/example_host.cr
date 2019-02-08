@@ -1,6 +1,5 @@
 require "yaml"
 require "../src/bridge"
-require "./spec_helper.cr"
 
 class Dog
   include Bridge::Host
@@ -76,11 +75,11 @@ Bridge.def_server ZooUNIX,
   ),
   serializer: msgpack(
     argument_as: hash,
-    response_format: hash(
-      data_field: ret,
-      exception_field: err,
-      exception_format: string
-    )
+    response_format: bool(string) # response_format: hash(
+  #  data_field: ret,
+  #  exception_field: err,
+  #  exception_format: string
+  # )
   ),
   multiplex: no
 Bridge.def_client ZooUNIXClient,
@@ -91,11 +90,11 @@ Bridge.def_client ZooUNIXClient,
   ),
   serializer: msgpack(
     argument_as: hash,
-    response_format: hash(
-      data_field: ret,
-      exception_field: err,
-      exception_format: string
-    )
+    response_format: bool(string) # response_format: hash(
+  #  data_field: ret,
+  #  exception_field: err,
+  #  exception_format: string
+  # )
   ),
   multiplex: no,
   injectors_everything: [

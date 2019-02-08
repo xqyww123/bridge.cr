@@ -37,6 +37,23 @@ module Bridge
               multiplexer: multiplexer
           )
         end
+
+        module Config
+          OVERALL = {interfaces: Host::Interfaces,
+            driver: Driver.config(
+              {% if driver.is_a? Call && driver.args %}
+              {% for arg, ind in driver.args %}
+                {{arg}},
+              {% end %} {% end %}
+              {% if driver.is_a? Call && driver.named_args %}
+              {% for arg in driver.named_args %}
+                {{arg.name.id}}: {{arg.value}},
+              {% end %} {% end %}),
+            serializer: SERIALIZER,
+            multiplex: MULTIPLEX
+          }
+        end
+        CONFIG = Config::OVERALL
       end
     end
   end

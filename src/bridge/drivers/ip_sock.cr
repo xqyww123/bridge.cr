@@ -5,9 +5,9 @@ module Bridge
     abstract class IPSocket(HostBinding, SerializerT) < SocketDriver(HostBinding, SerializerT, Socket::IPAddress)
       getter family : ::Socket::Family
       getter blocking : Bool
-      getter server_domain : String
+      getter domain : String
 
-      def initialize(host_binding : HostBinding, @server_domain, family, @blocking, multiplexer, timeout, sock_setting, logger)
+      def initialize(host_binding : HostBinding, @domain, family, @blocking, multiplexer, timeout, sock_setting, logger)
         @family = case family
                   when :ipv4
                     ::Socket::Family::INET
@@ -24,13 +24,13 @@ module Bridge
       TransportProtocal = ::Socket::Protocal::TCP
       getter port : Int32
 
-      def initialize(host_binding : HostBinding, server_domain : String, @port,
+      def initialize(host_binding : HostBinding, domain : String, @port,
                      multiplexer,
                      family = ::Socket::Family::INET,
                      blocking = false, timeout = nil,
                      logger = Logger.new(STDERR),
                      sock_setting = NO_SPECIAL_SETTING)
-        super host_binding, server_domain, family, blocking, multiplexer, timeout, sock_setting, logger
+        super host_binding, domain, family, blocking, multiplexer, timeout, sock_setting, logger
       end
 
       def generate_socket(multiplexed_interface : String) : ::Socket
@@ -38,7 +38,11 @@ module Bridge
       end
 
       def generate_socket_address(multiplexed_interface : String) : ::Socket::IPAddress
-        ::Socket::Addrinfo.tcp(@server_domain, @port, @family, @timeout).first.ip_address
+        ::Socket::Addrinfo.tcp(@domain, @port, @family, @timeout).first.ip_address
+      end
+
+      macro config(domain, port, **options)
+        {_name_: "TcpSocket", domain: {{domain}}, port: {{port}}}
       end
     end
 
@@ -46,20 +50,24 @@ module Bridge
       TransportProtocal = ::Socket::Protocal::UDP
       getter port : Int32
 
-      def initialize(host_binding : HostBinding, server_domain : String, @port,
+      def initialize(host_binding : HostBinding, domain : String, @port,
                      family = ::Socket::Family::INET,
                      blocking = false, multiplexer = nil, timeout = nil,
                      logger = Logger.new(STDERR),
                      sock_setting = NO_SPECIAL_SETTING)
-        super host_binding, server_domain, family, blocking, multiplexer, timeout, sock_setting, logger
+        super host_binding, domain, family, blocking, multiplexer, timeout, sock_setting, logger
       end
 
       def generate_socket_address(multiplexed_interface : String) : ::Socket::IPAddress
-        ::Socket::Addrinfo.udp(@server_domain, @port, @family, @timeout).first.ip_address
+        ::Socket::Addrinfo.udp(@domain, @port, @family, @timeout).first.ip_address
       end
 
       def generate_socket(multiplexed_interface : String) : ::Socket
         Socket.udp @family, @blocking
+      end
+
+      macro config(domain, port, **options)
+        {_name_: "UdpSocket", domain: {{domain}}, port: {{port}}}
       end
     end
   end

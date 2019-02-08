@@ -13,6 +13,9 @@ module Bridge
 
     macro new_send_path
       ::Bridge::Multiplexer::SendPath(HostInfo, Serializer).new
+      module Config
+        MULTIPLEX = {_name_: "send_path"}
+      end
     end
   end
 end
