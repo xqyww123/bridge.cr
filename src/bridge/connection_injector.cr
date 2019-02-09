@@ -13,17 +13,17 @@ module Bridge
     macro config_injectors(injectors_everything, injectors_multiplex, injectors_calling)
       module Config
         {% if injectors_everything %}
-        INJECTORS_EVERYTHING = [{% for inj in injectors_everything %}config_{{inj}},{% end %}].compact
+        INJECTORS_EVERYTHING = [{% for inj in injectors_everything %}::Bridge::Injector.config_{{inj}},{% end %}].compact
         {% else %}
           INJECTORS_EVERYTHING = [] of ::Bridge::Injector(Serializer)
         {% end %}
         {% if injectors_multiplex %}
-          INJECTORS_MULTIPLEX = [{% for inj in injectors_multiplex %}config_{{inj}},{% end %}].compact
+          INJECTORS_MULTIPLEX = [{% for inj in injectors_multiplex %}::Bridge::Injector.config_{{inj}},{% end %}].compact
         {% else %}
           INJECTORS_MULTIPLEX = [] of ::Bridge::Injector(Serializer)
         {% end %}
         {% if injectors_calling %}
-          INJECTORS_CALLING = [{% for inj in injectors_calling %}config_{{inj}},{% end %}].compact
+          INJECTORS_CALLING = [{% for inj in injectors_calling %}::Bridge::Injector.config_{{inj}},{% end %}].compact
         {% else %}
           INJECTORS_CALLING = [] of ::Bridge::Injector(Serializer)
         {% end %}
