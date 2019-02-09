@@ -39,7 +39,7 @@ module Bridge
               host_binding: Binding.new(host, serializer),
               multiplexer: multiplexer
           )
-        ::Bridge::Injector.add_injectors client, {{injectors_everything}}, {{injectors_multiplex}}, {{injectors_calling}}
+        ::Bridge::Injector.add_injectors ret, {{injectors_everything}}, {{injectors_multiplex}}, {{injectors_calling}}
           ret
         end
 
