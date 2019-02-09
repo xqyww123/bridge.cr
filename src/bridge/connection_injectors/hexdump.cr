@@ -1,8 +1,8 @@
 require "io/hexdump"
 
 module Bridge
-  module Injector
-    class Hexdump(SerializerT) < Everything(SerializerT)
+  class Injector(SerializerT)
+    class Hexdump(SerializerT) < Injector(SerializerT)
       getter dump_to, read, write
 
       def initialize(@dump_to : IO? = nil, @read : Bool = true, @write : Bool = false)
@@ -15,6 +15,10 @@ module Bridge
 
     macro new_hexdump(dump_to = nil, read = true, write = false)
       ::Bridge::Injector::Hexdump(Serializer).new({{dump_to}}, {{read}}, {{write}})
+    end
+
+    macro config_hexdump(*args, **opt)
+      nil
     end
   end
 end

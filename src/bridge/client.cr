@@ -13,9 +13,9 @@ module Bridge
     getter timeout : Time::Span?
 
     def initialize(@timeout, @serializer, @multiplexer, @logger = nil)
-      @injectors_everything = [] of Injector::Everything(SerializerT)
-      @injectors_multiplex = [] of Injector::Multiplex(SerializerT)
-      @injectors_calling = [] of Injector::Calling(SerializerT)
+      @injectors_everything = [] of Injector(SerializerT)
+      @injectors_multiplex = [] of Injector(SerializerT)
+      @injectors_calling = [] of Injector(SerializerT)
       @logger.try &.progname = to_s.colorize(:green).bold.to_s
     end
 

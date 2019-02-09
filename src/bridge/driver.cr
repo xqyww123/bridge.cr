@@ -3,7 +3,10 @@ require "./mutiplex.cr"
 require "./connection_injector.cr"
 
 module Bridge
-  macro def_server(name, *, driver, host, serializer, multiplex = :dynamic, **options)
+  macro def_server(name, *, driver, host, serializer, multiplex = :dynamic,
+                   injectors_everything = nil,
+                   injectors_multiplex = nil,
+                   injectors_calling = nil, **options)
     module {{name}}
       {% for k, v in options %}
       ::Bridge.def_{{k}}({{v}})
@@ -21,7 +24,7 @@ module Bridge
                      {% end %}
                      serializer = Serializer.new,
                      **options) : Driver
-          Driver.new(
+          ret = Driver.new(
           {% if driver.is_a? Call && driver.args %}
           {% for arg in driver.args %}
             {{arg}},
@@ -36,8 +39,12 @@ module Bridge
               host_binding: Binding.new(host, serializer),
               multiplexer: multiplexer
           )
+          Injector.add_injectors client, {{injectors_everything}}, {{injectors_multiplex}}, {{injectors_calling}}
+          ret
         end
 
+        ::Bridge::Multiplexer.config_{{multiplex}}
+        ::Bridge::Injector.config_injectors({{injectors_everything}}, {{injectors_multiplex}}, {{injectors_calling}})
         module Config
           OVERALL = {interfaces: Host::Interfaces,
             driver: Driver.config(
@@ -50,7 +57,10 @@ module Bridge
                 {{arg.name.id}}: {{arg.value}},
               {% end %} {% end %}),
             serializer: SERIALIZER,
-            multiplex: MULTIPLEX
+            multiplex: MULTIPLEX,
+            injectors_everything: INJECTORS_EVERYTHING,
+            injectors_calling: INJECTORS_CALLING,
+            injectors_multiplex: INJECTORS_MULTIPLEX
           }
         end
         CONFIG = Config::OVERALL
@@ -70,9 +80,9 @@ module Bridge
     getter injectors_calling
 
     def initialize(@host_binding, @multiplexer, @logger = Logger.new STDERR)
-      @injectors_everything = [] of Injector::Everything(SerializerT)
-      @injectors_multiplex = [] of Injector::Multiplex(SerializerT)
-      @injectors_calling = [] of Injector::Calling(SerializerT)
+      @injectors_everything = [] of Injector(SerializerT)
+      @injectors_multiplex = [] of Injector(SerializerT)
+      @injectors_calling = [] of Injector(SerializerT)
       @logger.progname = to_s.colorize(:yellow).bold.to_s
     end
 

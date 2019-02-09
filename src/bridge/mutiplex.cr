@@ -26,6 +26,9 @@ module Bridge
 
     macro new_no
       ::Bridge::Multiplexer::NoMultiplex(HostInfo, Serializer).new
+    end
+
+    macro config_no
       module Config
         MULTIPLEX = {_name_: "no"}
       end

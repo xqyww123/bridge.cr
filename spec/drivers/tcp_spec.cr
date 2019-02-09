@@ -4,7 +4,7 @@ require "../example_host.cr"
 Bridge.def_server ZooTCPS,
   host: Zoo,
   driver: tcp_socket(
-    server_domain: "127.0.0.1",
+    domain: "127.0.0.1",
     port: 2235,
     family: :ipv4,
     sock_setting: ->(sock : ::Socket) {
@@ -26,7 +26,7 @@ Bridge.def_server ZooTCPS,
 Bridge.def_client ZooTCPC,
   interfaces: Zoo::Interfaces,
   client: tcp_socket(
-    server_domain: "127.0.0.1",
+    domain: "127.0.0.1",
     port: 2235,
     family: :ipv4,
     logger: LOGGER.dup,

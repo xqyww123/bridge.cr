@@ -16,4 +16,16 @@ module Bridge
       {% end %}
     end
   end
+
+  # :nodoc:
+  macro expand_config(config_hash)
+    {% if config_hash.is_a? NamedTupleLiteral %}
+      {{config_hash[:_name_]}}({% for k, v in config_hash %}
+        {% if k != :_name_ %}
+          {{k}}: ::Bridge.expand_config({{v}})
+        {% end %} {% end %})
+    {% else %}
+      {{config_hash}}
+    {% end %}
+  end
 end

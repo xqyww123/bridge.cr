@@ -1,4 +1,12 @@
 module Bridge
+  macro def_client(name, config)
+    {% config = config.resolve if config.is_a? Path %}
+    def_client({{name}}, interfaces: {{config[:interfaces]}},
+      client: ::Bridge.expand_config({{config[:driver]}}),
+      serializer: ::Bridge.expand_config({{config[:serializer]}}),
+      multiplex: ::Bridge.expand_config({{config[:multiplex]}}))
+  end
+
   macro def_client(name, *, interfaces, client, serializer, multiplex,
                    injectors_everything = nil,
                    injectors_multiplex = nil,

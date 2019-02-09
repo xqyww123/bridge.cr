@@ -90,13 +90,12 @@ Bridge.def_client ZooUNIXClient,
   ),
   serializer: msgpack(
     argument_as: hash,
-    response_format: bool(string) # response_format: hash(
-  #  data_field: ret,
-  #  exception_field: err,
-  #  exception_format: string
-  # )
-  ),
+    response_format: bool(string),
+      # response_format: hash(
+    #  data_field: ret,
+    #  exception_field: err,
+    #  exception_format: string
+    # )
+),
   multiplex: no,
-  injectors_everything: [
-    hexdump(STDERR, write: true, read: true),
-  ]
+  injectors_everything: [hexdump(STDERR, write: true, read: true)]
